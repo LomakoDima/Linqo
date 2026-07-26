@@ -11,6 +11,8 @@ import type { ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
+import { LoadingScreen } from "@/components/LoadingScreen";
+import { THEME_INIT_SCRIPT } from "@/lib/theme";
 
 function NotFoundComponent() {
   return (
@@ -107,6 +109,10 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
+        {/* Blocking (non-module, non-async) so the dark class lands on <html>
+            before first paint — the alternative (setting it in a React
+            effect) would flash the wrong theme on every hard load. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body>
         {children}
@@ -121,6 +127,7 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <LoadingScreen />
       <Outlet />
       <Toaster />
     </QueryClientProvider>

@@ -3,6 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Rocket, ArrowRight, Palette, Share2, LayoutPanelTop, Zap } from "lucide-react";
 import type { Profile } from "@/lib/link-store";
 import { LinkPreview } from "@/components/LinkPreview";
+import { Reveal } from "@/components/Reveal";
+import { AnimatedWordmark } from "@/components/AnimatedWordmark";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const exampleProfile: Profile = {
   slug: "mayadesigns",
@@ -108,36 +111,55 @@ const STEPS = [
 function LandingPage() {
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
+      <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur animate-fade-in">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
           <div className="flex items-center gap-2">
-            <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground">
+            <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground animate-scale-in">
               <Rocket className="h-4 w-4" />
             </div>
-            <span className="text-lg font-semibold tracking-tight">Linqo.</span>
+            <AnimatedWordmark
+              id="header-wordmark-target"
+              text="Linqo."
+              delay={120}
+              className="text-lg font-semibold tracking-tight"
+            />
           </div>
-          <Button asChild size="sm">
-            <Link to="/build">
-              Open builder <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Button asChild size="sm">
+              <Link to="/build">
+                Open builder <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
         </div>
       </header>
 
       <main>
-        <section className="mx-auto grid max-w-7xl gap-12 px-6 py-20 lg:grid-cols-2 lg:items-center lg:py-28">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">One link. Every platform.</p>
-            <h1 className="mt-4 text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
+        <section className="relative mx-auto grid max-w-7xl gap-12 overflow-hidden px-6 py-20 lg:grid-cols-2 lg:items-center lg:py-28">
+          <div
+            aria-hidden
+            className="animate-blob pointer-events-none absolute -left-24 -top-24 -z-10 h-72 w-72 rounded-full bg-primary/10 blur-3xl"
+          />
+          <div
+            aria-hidden
+            className="animate-blob pointer-events-none absolute -bottom-24 -right-16 -z-10 h-80 w-80 rounded-full bg-primary/10 blur-3xl"
+            style={{ animationDelay: "-8s" }}
+          />
+          <div className="flex flex-col justify-center">
+            <p className="text-sm font-medium text-muted-foreground animate-slide-up">
+              One link. Every platform.
+            </p>
+            <h1 className="mt-4 text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl animate-slide-up delay-100">
               All your links,
               <br />
               one beautiful page.
             </h1>
-            <p className="mt-6 max-w-md text-lg text-muted-foreground">
+            <p className="mt-6 max-w-md text-lg text-muted-foreground animate-slide-up delay-200">
               Linqo is a minimal link-in-bio builder. Add your socials, pick a theme, and share one
               link — no sign-up, no backend, live in seconds.
             </p>
-            <div className="mt-8 flex flex-wrap items-center gap-3">
+            <div className="mt-8 flex flex-wrap items-center gap-3 animate-slide-up delay-300">
               <Button asChild size="lg">
                 <Link to="/build">
                   Start building <ArrowRight className="ml-2 h-4 w-4" />
@@ -147,7 +169,7 @@ function LandingPage() {
                 <a href="#how-it-works">See how it works</a>
               </Button>
             </div>
-            <div className="mt-10 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
+            <div className="mt-10 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground animate-slide-up delay-400">
               <span>No sign-up</span>
               <span>No backend</span>
               <span>5 themes</span>
@@ -155,45 +177,53 @@ function LandingPage() {
             </div>
           </div>
 
-          <div className="mx-auto">
+          <div className="mx-auto animate-slide-in-right delay-200">
             <LinkPreview profile={exampleProfile} framed />
           </div>
         </section>
 
         <section className="border-t border-border bg-card/40">
           <div className="mx-auto max-w-7xl px-6 py-20">
-            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-              Everything you need, nothing you don't
-            </h2>
+            <Reveal>
+              <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                Everything you need, nothing you don't
+              </h2>
+            </Reveal>
             <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {FEATURES.map((f) => (
-                <div key={f.title} className="rounded-xl border border-border bg-background p-5">
+              {FEATURES.map((f, i) => (
+                <Reveal
+                  key={f.title}
+                  delay={i * 80}
+                  className="rounded-xl border border-border bg-background p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-md"
+                >
                   <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary/10 text-primary">
                     <f.icon className="h-5 w-5" />
                   </div>
                   <h3 className="mt-4 font-medium">{f.title}</h3>
                   <p className="mt-1.5 text-sm text-muted-foreground">{f.body}</p>
-                </div>
+                </Reveal>
               ))}
             </div>
           </div>
         </section>
 
         <section id="how-it-works" className="mx-auto max-w-7xl px-6 py-20">
-          <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">How it works</h2>
+          <Reveal>
+            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">How it works</h2>
+          </Reveal>
           <div className="mt-10 grid gap-8 sm:grid-cols-3">
-            {STEPS.map((s) => (
-              <div key={s.n}>
+            {STEPS.map((s, i) => (
+              <Reveal key={s.n} delay={i * 100}>
                 <span className="text-sm font-semibold text-muted-foreground">{s.n}</span>
                 <h3 className="mt-2 text-lg font-medium">{s.title}</h3>
                 <p className="mt-1.5 text-sm text-muted-foreground">{s.body}</p>
-              </div>
+              </Reveal>
             ))}
           </div>
         </section>
 
         <section className="border-t border-border">
-          <div className="mx-auto max-w-7xl px-6 py-20 text-center">
+          <Reveal className="mx-auto max-w-7xl px-6 py-20 text-center">
             <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
               Ready to build yours?
             </h2>
@@ -205,7 +235,7 @@ function LandingPage() {
                 Start building <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
-          </div>
+          </Reveal>
         </section>
       </main>
 

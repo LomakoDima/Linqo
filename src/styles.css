@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Space+Grotesk:wght@300..700&display=swap");
+
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
@@ -64,6 +66,7 @@
 }
 
 :root {
+  color-scheme: light;
   --radius: 0.75rem;
   --background: oklch(0.97 0.005 90);
   --foreground: oklch(0.145 0.01 90);
@@ -100,6 +103,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: oklch(0.15 0.01 260);
   --foreground: oklch(0.96 0.005 260);
   --card: oklch(0.2 0.015 260);
@@ -141,14 +145,588 @@
 
   html {
     font-family: var(--font-sans);
+    scroll-behavior: smooth;
   }
 
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    /* One-time cold-load motion for the whole site. Only fires on the initial
+       document paint (this element persists across client-side route
+       changes, which have their own View Transition animation above). */
+    animation: site-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  /* Browsers without the View Transitions API (see ThemeToggle) skip the
+     circle-wipe entirely and swap the .dark class instantly — fall back to a
+     plain cross-fade so the light/dark flip still reads as an animation. */
+  @supports not (view-transition-name: root) {
+    @media (prefers-reduced-motion: no-preference) {
+      body {
+        transition:
+          background-color 0.35s ease,
+          color 0.35s ease;
+      }
+    }
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: var(--font-heading);
+  }
+
+  /* Premium slim scrollbars */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: oklch(0.145 0.01 90 / 12%);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: oklch(0.145 0.01 90 / 25%);
+  }
+  .dark ::-webkit-scrollbar-thumb {
+    background: oklch(1 0 0 / 12%);
+  }
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: oklch(1 0 0 / 25%);
+  }
+}
+
+/* Smooth route transitions (View Transitions API, e.g. landing -> builder).
+   Scoped to :not(.vt-local) so in-page transitions (see withViewTransition,
+   e.g. a banner's horizontal/vertical toggle) don't also replay this
+   full-page slide — those mark <html> with "vt-local" and only animate
+   their own named blocks below. */
+html:not(.vt-local) ::view-transition-old(root),
+html:not(.vt-local) ::view-transition-new(root) {
+  animation-duration: 0.32s;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+html:not(.vt-local) ::view-transition-old(root) {
+  animation-name: page-out;
+}
+
+html:not(.vt-local) ::view-transition-new(root) {
+  animation-name: page-in;
+}
+
+html.vt-local ::view-transition-old(root),
+html.vt-local ::view-transition-new(root) {
+  animation: none;
+}
+
+@keyframes page-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+
+  body {
+    animation: none;
+  }
+}
+
+@keyframes site-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Per-block morph (e.g. a banner resizing between horizontal/vertical) —
+   named per block in LinkPreview via viewTransitionName and triggered
+   through withViewTransition, which already skips the whole transition under
+   prefers-reduced-motion. The wildcard groups every block uniformly without
+   needing to list each dynamic block id in CSS. */
+::view-transition-group(*) {
+  animation-duration: 0.4s;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Premium entrance animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Selection confirmation: a checkmark (checkbox indicator, or a selected
+   swatch's overlay) scales in rather than just appearing — the same
+   "validation icon scales in" treatment as a form field, 200ms ease-out. */
+@keyframes checkPop {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-check-pop {
+  animation: checkPop 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-check-pop {
+    animation: none;
+  }
+}
+
+/* The checkbox's own box, not just its checkmark, gets a brief punch when it
+   becomes checked — the two layers (box + checkmark) settling together read
+   as one cohesive "pop", not a checkmark appearing on an inert box. Only
+   fires going into the checked state; unchecking stays quiet. */
+@keyframes checkboxBoxPop {
+  0% {
+    transform: scale(0.85);
+  }
+  60% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-checkbox-box-pop {
+  animation: checkboxBoxPop 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-checkbox-box-pop {
+    animation: none;
+  }
+}
+
+/* Content swap: for a control whose body is replaced by a variant of itself
+   (e.g. a segmented toggle's panel) rather than a fresh, unrelated element —
+   a touch more settle (scale + rise) than a plain fade so the swap reads as
+   "the same slot, new content" instead of "something appeared". */
+@keyframes swapIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-swap-in {
+  animation: swapIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Heading color melt — a custom solid color and a two-stop gradient are the
+   same rendering path (a background-clip:text gradient whose stops happen to
+   match for "solid"), so switching between them — or editing either stop —
+   is a genuinely interpolated color transition, not a cut/crossfade. Typed
+   custom properties are what make a gradient's own colors animatable at all;
+   a plain custom property or a `background-image` swap can't be transitioned
+   by the browser. */
+@property --heading-stop-1 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --heading-stop-2 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+
+.heading-color-melt {
+  background-image: linear-gradient(90deg, var(--heading-stop-1), var(--heading-stop-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  transition:
+    --heading-stop-1 0.45s cubic-bezier(0.65, 0, 0.35, 1),
+    --heading-stop-2 0.45s cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heading-color-melt {
+    transition: none;
+  }
+}
+
+/* Heading size — font-size and line-height are genuine numeric values (unlike
+   a font swap or a bold/italic toggle, which have no meaningful "in between"),
+   so resizing a heading gets a real interpolated grow/shrink instead of an
+   instant snap or a pop-in replay. */
+.heading-size-transition {
+  transition:
+    font-size 0.3s cubic-bezier(0.65, 0, 0.35, 1),
+    line-height 0.3s cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heading-size-transition {
+    transition: none;
+  }
+}
+
+/* Staggered delay utility classes */
+.delay-100 {
+  animation-delay: 100ms;
+}
+.delay-200 {
+  animation-delay: 200ms;
+}
+.delay-300 {
+  animation-delay: 300ms;
+}
+.delay-400 {
+  animation-delay: 400ms;
+}
+.delay-500 {
+  animation-delay: 500ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-slide-up,
+  .animate-slide-in-right,
+  .animate-scale-in,
+  .animate-swap-in {
+    animation: none !important;
+  }
+}
+
+/* Tab switch: the active-tab pill stretches like an elastic band across the
+   gap between the outgoing and incoming tab, then snaps onto the target with
+   a slight overshoot. The --gooey-* custom properties are set fresh before
+   each replay (see ui/tabs.tsx), since the from/stretch/to points differ
+   depending on which two tabs are involved. */
+@keyframes tabGooey {
+  0% {
+    left: var(--gooey-from-left);
+    width: var(--gooey-from-width);
+    height: var(--gooey-from-height);
+  }
+  38% {
+    left: var(--gooey-stretch-left);
+    width: var(--gooey-stretch-width);
+    height: calc(var(--gooey-from-height) * 0.75);
+  }
+  72% {
+    left: var(--gooey-to-left);
+    width: calc(var(--gooey-to-width) * 0.9);
+    height: var(--gooey-to-height);
+  }
+  85% {
+    width: calc(var(--gooey-to-width) * 1.08);
+  }
+  100% {
+    left: var(--gooey-to-left);
+    width: var(--gooey-to-width);
+    height: var(--gooey-to-height);
+  }
+}
+
+.animate-tab-gooey {
+  animation: tabGooey 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-tab-gooey {
+    animation: none !important;
+  }
+}
+
+/* Tab bar entrance: each trigger fades/rises in with a short stagger so the
+   whole bar cascades in left-to-right on first mount, instead of popping in
+   as one flat block. nth-of-type (not nth-child) so the indicator <span>
+   sitting alongside the buttons doesn't throw off the count. */
+@keyframes tabEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-tab-enter {
+  animation: tabEnter 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-tab-enter:nth-of-type(1) {
+  animation-delay: 0ms;
+}
+.animate-tab-enter:nth-of-type(2) {
+  animation-delay: 60ms;
+}
+.animate-tab-enter:nth-of-type(3) {
+  animation-delay: 120ms;
+}
+.animate-tab-enter:nth-of-type(4) {
+  animation-delay: 180ms;
+}
+.animate-tab-enter:nth-of-type(5) {
+  animation-delay: 240ms;
+}
+.animate-tab-enter:nth-of-type(6) {
+  animation-delay: 300ms;
+}
+.animate-tab-enter:nth-of-type(7) {
+  animation-delay: 360ms;
+}
+.animate-tab-enter:nth-of-type(8) {
+  animation-delay: 420ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-tab-enter {
+    animation: none !important;
+  }
+}
+
+/* "Add a block" button row: each type (Link, Banner, Heading, ...) pops in
+   with a short stagger and a slight scale, rather than the whole row
+   appearing as one flat block. */
+@keyframes blockTypeEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-block-type-enter {
+  animation: blockTypeEnter 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-block-type-enter:nth-of-type(1) {
+  animation-delay: 0ms;
+}
+.animate-block-type-enter:nth-of-type(2) {
+  animation-delay: 50ms;
+}
+.animate-block-type-enter:nth-of-type(3) {
+  animation-delay: 100ms;
+}
+.animate-block-type-enter:nth-of-type(4) {
+  animation-delay: 150ms;
+}
+.animate-block-type-enter:nth-of-type(5) {
+  animation-delay: 200ms;
+}
+.animate-block-type-enter:nth-of-type(6) {
+  animation-delay: 250ms;
+}
+.animate-block-type-enter:nth-of-type(7) {
+  animation-delay: 300ms;
+}
+.animate-block-type-enter:nth-of-type(8) {
+  animation-delay: 350ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-block-type-enter {
+    animation: none !important;
+  }
+}
+
+/* Content-block reordering (see BuilderPage's FLIP effect in build.tsx):
+   the transition-property has to already be in effect before the JS toggles
+   `transform`, established here from first render rather than set inline at
+   the same time as the value — the same same-tick trap as the other manual
+   transition/animation gotchas in this file. */
+.reorder-item {
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reorder-item {
+    transition: none;
+  }
+}
+
+/* "Now playing" equalizer bars on the background-music widget */
+@keyframes eqBounce {
+  0%,
+  100% {
+    height: 4px;
+  }
+  50% {
+    height: 12px;
+  }
+}
+
+.animate-eq-bar {
+  animation: eqBounce 0.9s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-eq-bar {
+    animation: none !important;
+    height: 8px;
+  }
+}
+
+/* Brand wordmark letter cascade (AnimatedWordmark component) */
+@keyframes wordmark-in {
+  from {
+    opacity: 0;
+    transform: translateY(55%) scale(0.6);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes wordmark-dot-in {
+  0% {
+    opacity: 0;
+    transform: scale(0) translateY(40%);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.4) translateY(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.wordmark-letter {
+  animation: wordmark-in 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.wordmark-dot {
+  transform-origin: center bottom;
+  animation: wordmark-dot-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wordmark-letter,
+  .wordmark-dot {
+    animation: none !important;
+    opacity: 1;
+  }
+}
+
+/* Slow-floating decorative blobs behind the landing page hero */
+@keyframes blobFloat {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(4%, -6%) scale(1.08);
+  }
+  66% {
+    transform: translate(-3%, 4%) scale(0.94);
+  }
+}
+
+.animate-blob {
+  animation: blobFloat 16s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-blob {
+    animation: none !important;
   }
 }
