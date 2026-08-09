@@ -36,5 +36,13 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
+  {
+    // The standalone Express + Postgres API (see backend/) — Node globals,
+    // not browser ones, and none of the React-specific rules above apply.
+    files: ["backend/**/*.ts"],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
   eslintPluginPrettier,
 );

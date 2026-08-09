@@ -43,7 +43,7 @@ export function HeadingFontPicker({
             type="button"
             title={`Font: ${current.label}`}
             aria-label={`Font: ${current.label}`}
-            className="flex h-8 items-center gap-1 rounded-md px-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="flex h-8 cursor-pointer items-center gap-1 rounded-md px-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <span style={{ fontFamily: current.family }} className="text-foreground">
               Aa
@@ -53,7 +53,7 @@ export function HeadingFontPicker({
         ) : (
           <button
             type="button"
-            className="flex w-full items-center justify-between gap-2 rounded-lg border border-border bg-background px-3.5 py-3 text-left transition-colors hover:border-muted-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-border bg-background px-3.5 py-3 text-left transition-colors hover:border-muted-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <span style={{ fontFamily: current.family }} className="truncate text-lg">
               {current.label}
@@ -80,7 +80,7 @@ export function HeadingFontPicker({
                         key={f.key}
                         type="button"
                         onClick={() => onChange(f.key)}
-                        className={`flex items-center justify-between rounded-md px-3 py-2.5 text-left transition-colors ${
+                        className={`flex cursor-pointer items-center justify-between rounded-md px-3 py-2.5 text-left transition-colors ${
                           active ? "bg-accent" : "hover:bg-muted"
                         }`}
                       >

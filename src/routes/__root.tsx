@@ -10,9 +10,11 @@ import {
 import type { ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-import { Toaster } from "@/components/ui/sonner";
+import { ToastViewport } from "@/components/notifications";
 import { LoadingScreen } from "@/components/LoadingScreen";
+import { CookieConsent } from "@/components/CookieConsent";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
+import { AuthProvider } from "@/lib/auth-context";
 
 function NotFoundComponent() {
   return (
@@ -55,7 +57,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
               router.invalidate();
               reset();
             }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            className="inline-flex cursor-pointer items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Try again
           </button>
@@ -76,16 +78,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Linqo — the multi-link builder" },
+      { title: "Linqo — Build your personal page, without code" },
       {
         name: "description",
         content:
-          "One link for all your socials and projects. Live preview, beautiful themes, instant publishing.",
+          "Build your personal page, without code. Live preview, beautiful themes, instant publishing.",
       },
-      { property: "og:title", content: "Linqo — the multi-link builder" },
+      { property: "og:title", content: "Linqo — Build your personal page, without code" },
       {
         property: "og:description",
-        content: "One link for all your socials and projects.",
+        content: "Build your personal page, without code.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -127,9 +129,12 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <LoadingScreen />
-      <Outlet />
-      <Toaster />
+      <AuthProvider>
+        <LoadingScreen />
+        <Outlet />
+        <ToastViewport />
+        <CookieConsent />
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

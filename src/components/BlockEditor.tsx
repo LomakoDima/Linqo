@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/notifications";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
@@ -17,23 +18,34 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import {
   BANNER_PATTERNS,
   BANNER_STYLES,
+  DIVIDER_ICON_NAMES,
   HEADING_SIZES,
   IMAGE_SHAPES,
   bannerPatternUrl,
   imageFieldDisplay,
   resolveTextRuns,
+  uid,
   type BannerLayout,
   type BannerPattern,
   type BannerStyle,
+  type CountdownStyle,
+  type DividerStyle,
+  type FaqDefaultOpen,
+  type FaqItem,
+  type GalleryLayout,
   type HeadingSize,
   type ImageShape,
   type LinkBlock,
+  type QuoteStyle,
   type SocialKind,
   type TextRun,
+  type TimelineItem,
+  type VideoAspect,
 } from "@/lib/link-store";
 import { fileToResizedDataUrl } from "@/lib/image";
 import { withViewTransition } from "@/lib/view-transition";
 import { HeadingFontPicker } from "@/components/HeadingFontPicker";
+import { MediaLinkPicker } from "@/components/MediaLinkPicker";
 import { getHeadingFont, loadGoogleFont } from "@/lib/fonts";
 import {
   ArrowDown,
@@ -42,7 +54,6 @@ import {
   ChevronsUpDown,
   Trash2,
   Plus,
-  Upload,
   Bold,
   Italic,
   Underline as UnderlineIcon,
@@ -50,7 +61,27 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  Sparkles,
+  Star,
+  Heart,
+  Sun,
+  Moon,
+  Feather,
+  X,
+  type LucideIcon,
 } from "lucide-react";
+
+// Same finite icon set as LinkPreview.tsx's DIVIDER_ICONS — this is the
+// picker side, that's the renderer side, both keyed by DIVIDER_ICON_NAMES
+// (link-store.ts) so they can never drift out of sync silently.
+const DIVIDER_ICON_COMPONENTS: Record<string, LucideIcon> = {
+  sparkles: Sparkles,
+  star: Star,
+  heart: Heart,
+  sun: Sun,
+  moon: Moon,
+  feather: Feather,
+};
 
 const HEX_COLOR_RE = /^#([0-9a-f]{6})$/i;
 const isHexColor = (v: string | undefined): v is string => !!v && HEX_COLOR_RE.test(v);
@@ -77,28 +108,21 @@ const SOCIAL_KINDS: SocialKind[] = [
   "website",
 ];
 
-export function BlockEditor({
+// Field-only editor for a block's content — no outer card chrome, no
+// move/delete/duplicate controls. That chrome now lives one layer up, in
+// BlockRenderer/BlockToolbar (src/components/block-editor/), which mounts
+// this for whichever block isn't currently collapsed. This split is
+// deliberate: BlockRenderer owns "is this block expanded, and what happens
+// when you drag/duplicate/delete it," this file only owns "what do this
+// block's own fields look like."
+export function BlockFieldsEditor({
   block,
   onChange,
-  onDelete,
-  onMove,
-  canUp,
-  canDown,
 }: {
   block: LinkBlock;
   onChange: (b: LinkBlock) => void;
-  onDelete: () => void;
-  onMove: (dir: -1 | 1) => void;
-  canUp: boolean;
-  canDown: boolean;
 }) {
-  const bannerImageInputRef = useRef<HTMLInputElement>(null);
-  const imageBlockInputRef = useRef<HTMLInputElement>(null);
-
-  const handleBannerImageFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
+  const handleBannerImageFile = async (file: File) => {
     try {
       const dataUrl = await fileToResizedDataUrl(file, 960, 0.78, 55_000);
       onChange({ ...block, image: dataUrl, imageName: file.name });
@@ -107,37 +131,44 @@ export function BlockEditor({
     }
   };
 
-  const handleImageBlockFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
+  const handleImageBlockFile = async (file: File) => {
     try {
       const dataUrl = await fileToResizedDataUrl(file, 960, 0.78, 55_000);
       onChange({ ...block, image: dataUrl, imageName: file.name });
     } catch {
       toast.error("Couldn't read that image");
     }
+  };
+
+  const handleGalleryFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const existing = block.galleryImages ?? [];
+    const added: NonNullable<LinkBlock["galleryImages"]> = [];
+    for (const file of Array.from(files)) {
+      try {
+        const dataUrl = await fileToResizedDataUrl(file, 960, 0.78, 55_000);
+        added.push({ id: uid(), image: dataUrl, imageName: file.name });
+      } catch {
+        toast.error(`Couldn't read "${file.name}"`);
+      }
+    }
+    if (added.length > 0) onChange({ ...block, galleryImages: [...existing, ...added] });
+  };
+
+  const updateTimelineItem = (index: number, item: TimelineItem) => {
+    const items = [...(block.timelineItems ?? [])];
+    items[index] = item;
+    onChange({ ...block, timelineItems: items });
+  };
+
+  const updateFaqItem = (index: number, item: FaqItem) => {
+    const items = [...(block.faqItems ?? [])];
+    items[index] = item;
+    onChange({ ...block, faqItems: items });
   };
 
   return (
-    <div className="rounded-xl border border-border bg-card/60 backdrop-blur-sm p-5 shadow-sm hover:shadow-md transition-all duration-200 animate-slide-up">
-      <div className="mb-3 flex items-center justify-between">
-        <span className="rounded-lg bg-accent/75 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-accent-foreground">
-          {block.type}
-        </span>
-        <div className="flex items-center gap-1">
-          <Button size="icon" variant="ghost" disabled={!canUp} onClick={() => onMove(-1)}>
-            <ArrowUp className="h-4 w-4" />
-          </Button>
-          <Button size="icon" variant="ghost" disabled={!canDown} onClick={() => onMove(1)}>
-            <ArrowDown className="h-4 w-4" />
-          </Button>
-          <Button size="icon" variant="ghost" onClick={onDelete}>
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
-        </div>
-      </div>
-
+    <>
       {block.type === "link" && (
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
@@ -188,32 +219,16 @@ export function BlockEditor({
             </div>
             <div className="sm:col-span-2">
               <Label>Image</Label>
-              <div className="flex flex-wrap items-center gap-2">
-                <Input
-                  className="min-w-[160px] flex-1"
-                  value={imageFieldDisplay(block.image ?? "", block.imageName)}
-                  onChange={(e) =>
-                    onChange({ ...block, image: e.target.value, imageName: undefined })
-                  }
-                  placeholder="https://..."
-                />
-                <input
-                  ref={bannerImageInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleBannerImageFile}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0"
-                  onClick={() => bannerImageInputRef.current?.click()}
-                >
-                  <Upload className="mr-2 h-4 w-4" /> Upload
-                </Button>
-              </div>
+              <MediaLinkPicker
+                value={block.image ?? ""}
+                displayLabel={imageFieldDisplay(block.image ?? "", block.imageName)}
+                thumbnailSrc={block.image || undefined}
+                onUrlChange={(url) => onChange({ ...block, image: url, imageName: undefined })}
+                onUpload={handleBannerImageFile}
+                onClear={() => onChange({ ...block, image: undefined, imageName: undefined })}
+                accept="image/*"
+                shape="wide"
+              />
             </div>
           </div>
           <div>
@@ -230,7 +245,7 @@ export function BlockEditor({
                     onClick={() =>
                       withViewTransition(() => onChange({ ...block, bannerLayout: k }))
                     }
-                    className={`rounded-lg px-3 py-1.5 text-sm capitalize transition-all duration-200 ${
+                    className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm capitalize transition-all duration-200 ${
                       active
                         ? "bg-primary text-primary-foreground shadow-md"
                         : "border border-border text-muted-foreground hover:text-foreground"
@@ -317,7 +332,7 @@ export function BlockEditor({
                     key={k}
                     type="button"
                     onClick={() => onChange({ ...block, headingSize: k })}
-                    className={`rounded-lg px-3.5 py-1.5 text-sm transition-all duration-200 ${
+                    className={`cursor-pointer rounded-lg px-3.5 py-1.5 text-sm transition-all duration-200 ${
                       active
                         ? "bg-primary text-primary-foreground shadow-md"
                         : "border border-border text-muted-foreground hover:text-foreground"
@@ -483,32 +498,16 @@ export function BlockEditor({
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <Label>Image</Label>
-              <div className="flex flex-wrap items-center gap-2">
-                <Input
-                  className="min-w-[160px] flex-1"
-                  value={imageFieldDisplay(block.image ?? "", block.imageName)}
-                  onChange={(e) =>
-                    onChange({ ...block, image: e.target.value, imageName: undefined })
-                  }
-                  placeholder="https://..."
-                />
-                <input
-                  ref={imageBlockInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleImageBlockFile}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0"
-                  onClick={() => imageBlockInputRef.current?.click()}
-                >
-                  <Upload className="mr-2 h-4 w-4" /> Upload
-                </Button>
-              </div>
+              <MediaLinkPicker
+                value={block.image ?? ""}
+                displayLabel={imageFieldDisplay(block.image ?? "", block.imageName)}
+                thumbnailSrc={block.image || undefined}
+                onUrlChange={(url) => onChange({ ...block, image: url, imageName: undefined })}
+                onUpload={handleImageBlockFile}
+                onClear={() => onChange({ ...block, image: undefined, imageName: undefined })}
+                accept="image/*"
+                shape="wide"
+              />
             </div>
             <div>
               <Label>Link (on click)</Label>
@@ -531,7 +530,7 @@ export function BlockEditor({
                     key={k}
                     type="button"
                     onClick={() => onChange({ ...block, imageShape: k })}
-                    className={`rounded-lg px-3.5 py-1.5 text-sm transition-all duration-200 ${
+                    className={`cursor-pointer rounded-lg px-3.5 py-1.5 text-sm transition-all duration-200 ${
                       active
                         ? "bg-primary text-primary-foreground shadow-md"
                         : "border border-border text-muted-foreground hover:text-foreground"
@@ -542,6 +541,23 @@ export function BlockEditor({
                 );
               })}
             </div>
+          </div>
+          <div>
+            <Label className="mb-2.5 flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Transparency
+              </span>
+              <span className="text-xs font-medium text-muted-foreground">
+                {block.imageOpacity ?? 100}%
+              </span>
+            </Label>
+            <Slider
+              min={0}
+              max={100}
+              step={1}
+              value={[block.imageOpacity ?? 100]}
+              onValueChange={([v]) => onChange({ ...block, imageOpacity: v })}
+            />
           </div>
         </div>
       )}
@@ -607,8 +623,458 @@ export function BlockEditor({
           </Button>
         </div>
       )}
-    </div>
+
+      {block.type === "divider" && (
+        <div className="space-y-4">
+          <div>
+            <Label className="mb-2.5 block text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Style
+            </Label>
+            <SegmentedToggle<DividerStyle>
+              value={block.dividerStyle ?? "solid"}
+              options={[
+                { value: "solid", label: "Solid" },
+                { value: "dashed", label: "Dashed" },
+                { value: "dotted", label: "Dotted" },
+                { value: "icon", label: "Icon" },
+              ]}
+              onChange={(v) => onChange({ ...block, dividerStyle: v })}
+            />
+          </div>
+          {(block.dividerStyle ?? "solid") === "icon" && (
+            <div className="animate-swap-in">
+              <Label className="mb-2.5 block text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Icon
+              </Label>
+              <div className="flex flex-wrap gap-2">
+                {DIVIDER_ICON_NAMES.map((name) => {
+                  const Icon = DIVIDER_ICON_COMPONENTS[name];
+                  const active = (block.dividerIcon ?? DIVIDER_ICON_NAMES[0]) === name;
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => onChange({ ...block, dividerIcon: name })}
+                      className={`grid h-9 w-9 cursor-pointer place-items-center rounded-lg transition-all duration-200 ${
+                        active
+                          ? "bg-primary text-primary-foreground shadow-md"
+                          : "border border-border text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          <div>
+            <Label className="mb-2.5 block text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Color
+            </Label>
+            <ColorField
+              value={block.dividerColor}
+              onChange={(v) => onChange({ ...block, dividerColor: v })}
+              fallback="#8a8a8a"
+            />
+          </div>
+        </div>
+      )}
+
+      {block.type === "quote" && (
+        <div className="space-y-4">
+          <div>
+            <Label>Quote</Label>
+            <Textarea
+              rows={3}
+              value={block.quoteText ?? ""}
+              onChange={(e) => onChange({ ...block, quoteText: e.target.value })}
+              placeholder="Type a quote…"
+            />
+          </div>
+          <div>
+            <Label>Attribution</Label>
+            <Input
+              value={block.quoteAuthor ?? ""}
+              onChange={(e) => onChange({ ...block, quoteAuthor: e.target.value })}
+              placeholder="Someone, somewhere"
+            />
+          </div>
+          <div>
+            <Label className="mb-2.5 block text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Style
+            </Label>
+            <SegmentedToggle<QuoteStyle>
+              value={block.quoteStyle ?? "plain"}
+              options={[
+                { value: "plain", label: "Plain" },
+                { value: "card", label: "Card" },
+                { value: "bigmark", label: "Big mark" },
+              ]}
+              onChange={(v) => onChange({ ...block, quoteStyle: v })}
+            />
+          </div>
+          <div>
+            <Label className="mb-2.5 block text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Alignment
+            </Label>
+            <SegmentedToggle
+              value={block.quoteAlign ?? "center"}
+              options={[
+                { value: "left", label: "Left", icon: AlignLeft },
+                { value: "center", label: "Center", icon: AlignCenter },
+                { value: "right", label: "Right", icon: AlignRight },
+              ]}
+              onChange={(v) => onChange({ ...block, quoteAlign: v })}
+            />
+          </div>
+          <div>
+            <Label className="mb-2.5 block text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Color
+            </Label>
+            <ColorField
+              value={block.quoteColor}
+              onChange={(v) => onChange({ ...block, quoteColor: v })}
+              fallback="#f97316"
+            />
+          </div>
+        </div>
+      )}
+
+      {block.type === "gallery" && (
+        <div className="space-y-4">
+          <div>
+            <Label className="mb-2.5 block text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Layout
+            </Label>
+            <SegmentedToggle<GalleryLayout>
+              value={block.galleryLayout ?? "grid"}
+              options={[
+                { value: "grid", label: "Grid" },
+                { value: "carousel", label: "Carousel" },
+                { value: "masonry", label: "Masonry" },
+              ]}
+              onChange={(v) => onChange({ ...block, galleryLayout: v })}
+            />
+          </div>
+          <div>
+            <Label className="mb-2.5 block text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Shape
+            </Label>
+            <div className="flex flex-wrap gap-2">
+              {(Object.keys(IMAGE_SHAPES) as ImageShape[]).map((k) => {
+                const active = (block.galleryShape ?? "rounded") === k;
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => onChange({ ...block, galleryShape: k })}
+                    className={`cursor-pointer rounded-lg px-3.5 py-1.5 text-sm transition-all duration-200 ${
+                      active
+                        ? "bg-primary text-primary-foreground shadow-md"
+                        : "border border-border text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {IMAGE_SHAPES[k].label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <Label className="mb-2.5 block">Images</Label>
+            <div className="grid grid-cols-4 gap-2">
+              {(block.galleryImages ?? []).map((img, i) => (
+                <div
+                  key={img.id}
+                  className="group relative overflow-hidden rounded-lg border border-border"
+                >
+                  <img src={img.image} alt="" className="aspect-square w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onChange({
+                        ...block,
+                        galleryImages: (block.galleryImages ?? []).filter((_, j) => j !== i),
+                      })
+                    }
+                    className="absolute right-1 top-1 grid h-5 w-5 cursor-pointer place-items-center rounded-full bg-black/60 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              <label className="grid aspect-square cursor-pointer place-items-center rounded-lg border border-dashed border-border text-muted-foreground transition-colors hover:border-muted-foreground/40 hover:text-foreground">
+                <Plus className="h-5 w-5" />
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => handleGalleryFiles(e.target.files)}
+                />
+              </label>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {block.type === "video" && (
+        <div className="space-y-4">
+          <div>
+            <Label>Video URL</Label>
+            <Input
+              value={block.videoUrl ?? ""}
+              onChange={(e) => onChange({ ...block, videoUrl: e.target.value })}
+              placeholder="https://youtube.com/watch?v=…"
+            />
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              A YouTube or Vimeo link, or a direct link to a video file.
+            </p>
+          </div>
+          <div>
+            <Label>Title</Label>
+            <Input
+              value={block.videoTitle ?? ""}
+              onChange={(e) => onChange({ ...block, videoTitle: e.target.value })}
+              placeholder="My video"
+            />
+          </div>
+          <div>
+            <Label className="mb-2.5 block text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Aspect ratio
+            </Label>
+            <SegmentedToggle<VideoAspect>
+              value={block.videoAspect ?? "16:9"}
+              options={[
+                { value: "16:9", label: "16:9" },
+                { value: "9:16", label: "9:16" },
+                { value: "1:1", label: "1:1" },
+              ]}
+              onChange={(v) => onChange({ ...block, videoAspect: v })}
+            />
+          </div>
+          <div className="flex items-center gap-2.5">
+            <Checkbox
+              id={`video-autoplay-${block.id}`}
+              checked={block.videoAutoplay ?? false}
+              onCheckedChange={(checked) => onChange({ ...block, videoAutoplay: checked === true })}
+            />
+            <Label
+              htmlFor={`video-autoplay-${block.id}`}
+              className="cursor-pointer select-none text-sm font-normal"
+            >
+              Autoplay (muted)
+            </Label>
+          </div>
+        </div>
+      )}
+
+      {block.type === "timeline" && (
+        <div className="space-y-4">
+          <div className="space-y-3">
+            {(block.timelineItems ?? []).map((item, i) => (
+              <div key={item.id} className="space-y-2 rounded-lg border border-border p-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Milestone {i + 1}
+                  </Label>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() =>
+                      onChange({
+                        ...block,
+                        timelineItems: (block.timelineItems ?? []).filter((_, j) => j !== i),
+                      })
+                    }
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground transition-colors hover:text-destructive" />
+                  </Button>
+                </div>
+                <Input
+                  value={item.title}
+                  onChange={(e) => updateTimelineItem(i, { ...item, title: e.target.value })}
+                  placeholder="Title"
+                />
+                <Input
+                  value={item.date ?? ""}
+                  onChange={(e) => updateTimelineItem(i, { ...item, date: e.target.value })}
+                  placeholder="Date (e.g. 2024)"
+                />
+                <Textarea
+                  rows={2}
+                  value={item.description ?? ""}
+                  onChange={(e) => updateTimelineItem(i, { ...item, description: e.target.value })}
+                  placeholder="Description"
+                />
+              </div>
+            ))}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              onChange({
+                ...block,
+                timelineItems: [
+                  ...(block.timelineItems ?? []),
+                  { id: uid(), title: "New milestone" },
+                ],
+              })
+            }
+          >
+            <Plus className="mr-1 h-4 w-4" /> Milestone
+          </Button>
+          <div>
+            <Label className="mb-2.5 block text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Orientation
+            </Label>
+            <SegmentedToggle
+              value={block.timelineOrientation ?? "vertical"}
+              options={[
+                { value: "vertical", label: "Vertical" },
+                { value: "horizontal", label: "Horizontal" },
+              ]}
+              onChange={(v) => onChange({ ...block, timelineOrientation: v })}
+            />
+          </div>
+        </div>
+      )}
+
+      {block.type === "countdown" && (
+        <div className="space-y-4">
+          <div>
+            <Label>Label</Label>
+            <Input
+              value={block.countdownLabel ?? ""}
+              onChange={(e) => onChange({ ...block, countdownLabel: e.target.value })}
+              placeholder="Counting down to"
+            />
+          </div>
+          <div>
+            <Label>Target date &amp; time</Label>
+            <Input
+              type="datetime-local"
+              value={isoToDatetimeLocal(block.countdownTarget)}
+              onChange={(e) =>
+                onChange({ ...block, countdownTarget: datetimeLocalToIso(e.target.value) })
+              }
+            />
+          </div>
+          <div>
+            <Label className="mb-2.5 block text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Style
+            </Label>
+            <SegmentedToggle<CountdownStyle>
+              value={block.countdownStyle ?? "digits"}
+              options={[
+                { value: "digits", label: "Digits" },
+                { value: "words", label: "Words" },
+              ]}
+              onChange={(v) => onChange({ ...block, countdownStyle: v })}
+            />
+          </div>
+          <div>
+            <Label>Message when it's over</Label>
+            <Input
+              value={block.countdownExpiredMessage ?? ""}
+              onChange={(e) => onChange({ ...block, countdownExpiredMessage: e.target.value })}
+              placeholder="We're live!"
+            />
+          </div>
+        </div>
+      )}
+
+      {block.type === "faq" && (
+        <div className="space-y-4">
+          <div className="space-y-3">
+            {(block.faqItems ?? []).map((item, i) => (
+              <div key={item.id} className="space-y-2 rounded-lg border border-border p-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Question {i + 1}
+                  </Label>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() =>
+                      onChange({
+                        ...block,
+                        faqItems: (block.faqItems ?? []).filter((_, j) => j !== i),
+                      })
+                    }
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground transition-colors hover:text-destructive" />
+                  </Button>
+                </div>
+                <Input
+                  value={item.question}
+                  onChange={(e) => updateFaqItem(i, { ...item, question: e.target.value })}
+                  placeholder="Question"
+                />
+                <Textarea
+                  rows={2}
+                  value={item.answer}
+                  onChange={(e) => updateFaqItem(i, { ...item, answer: e.target.value })}
+                  placeholder="Answer"
+                />
+              </div>
+            ))}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              onChange({
+                ...block,
+                faqItems: [
+                  ...(block.faqItems ?? []),
+                  { id: uid(), question: "New question", answer: "" },
+                ],
+              })
+            }
+          >
+            <Plus className="mr-1 h-4 w-4" /> Question
+          </Button>
+          <div>
+            <Label className="mb-2.5 block text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Default state
+            </Label>
+            <SegmentedToggle<FaqDefaultOpen>
+              value={block.faqDefaultOpen ?? "none"}
+              options={[
+                { value: "none", label: "Collapsed" },
+                { value: "first", label: "First open" },
+                { value: "all", label: "All open" },
+              ]}
+              onChange={(v) => onChange({ ...block, faqDefaultOpen: v })}
+            />
+          </div>
+        </div>
+      )}
+    </>
   );
+}
+
+// `datetime-local` inputs want "YYYY-MM-DDTHH:mm" in the *browser's* local
+// time, with no timezone suffix; countdownTarget is stored as a real ISO
+// string (UTC-anchored) so it means the same instant no matter who's
+// viewing the page. These two are the read/write halves of that
+// conversion — round-tripping through `Date` handles the local-offset math
+// so callers never touch it directly.
+function isoToDatetimeLocal(iso: string | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function datetimeLocalToIso(value: string): string | undefined {
+  if (!value) return undefined;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
 }
 
 // Swatch (native color-picker widget) + hex field + optional reset, reused
@@ -617,13 +1083,13 @@ export function BlockEditor({
 // box (via offsetLeft/offsetWidth) and glides to it, rather than each button
 // just flipping its own background on click. Reuses the same "measure the
 // real element, transition to it" approach as TabsList's indicator.
-function SegmentedToggle<T extends string>({
+export function SegmentedToggle<T extends string>({
   value,
   options,
   onChange,
 }: {
   value: T;
-  options: { value: T; label: string }[];
+  options: { value: T; label: string; icon?: LucideIcon }[];
   onChange: (v: T) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -650,10 +1116,11 @@ function SegmentedToggle<T extends string>({
           data-value={opt.value}
           onClick={() => onChange(opt.value)}
           aria-pressed={value === opt.value}
-          className={`relative z-10 rounded-md px-2.5 py-1 text-xs transition-colors duration-200 ${
+          className={`relative z-10 flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors duration-200 ${
             value === opt.value ? "text-foreground" : "text-muted-foreground hover:text-foreground"
           }`}
         >
+          {opt.icon && <opt.icon className="h-3.5 w-3.5" />}
           {opt.label}
         </button>
       ))}
@@ -690,7 +1157,7 @@ function ContactField({
   );
 }
 
-function ColorField({
+export function ColorField({
   label,
   value,
   onChange,
@@ -746,7 +1213,7 @@ function StyleToggle({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`rounded-lg px-3.5 py-1.5 text-sm transition-all duration-200 ${className} ${
+      className={`cursor-pointer rounded-lg px-3.5 py-1.5 text-sm transition-all duration-200 ${className} ${
         active
           ? "bg-primary text-primary-foreground shadow-md"
           : "border border-border text-muted-foreground hover:text-foreground"
@@ -1094,7 +1561,7 @@ function TextBlockFields({
                   title={HEADING_SIZES[k].label}
                   aria-pressed={active}
                   onClick={() => handleSizePick(k)}
-                  className={`h-8 rounded-md px-2 text-xs font-semibold transition-colors duration-150 ${
+                  className={`h-8 cursor-pointer rounded-md px-2 text-xs font-semibold transition-colors duration-150 ${
                     active
                       ? "bg-primary text-primary-foreground shadow-sm"
                       : "text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -1224,7 +1691,7 @@ function ToolbarIconButton({
       aria-pressed={active}
       title={label}
       aria-label={label}
-      className={`grid h-8 w-8 shrink-0 place-items-center rounded-md transition-colors duration-150 ${
+      className={`grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-md transition-colors duration-150 ${
         active
           ? "bg-primary text-primary-foreground shadow-sm"
           : "text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -1253,7 +1720,7 @@ function TextColorToolbarButton({
           type="button"
           title="Text color"
           aria-label="Text color"
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-md transition-colors duration-150 hover:bg-accent"
+          className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-md transition-colors duration-150 hover:bg-accent"
         >
           <span
             className="h-4 w-4 rounded-full ring-1 ring-black/10"
@@ -1379,7 +1846,7 @@ function BannerPresetSwatchPicker({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex w-full items-center justify-between gap-2 rounded-lg border border-border bg-background px-3.5 py-2.5 text-left transition-colors hover:border-muted-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-border bg-background px-3.5 py-2.5 text-left transition-colors hover:border-muted-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <span className="flex items-center gap-2.5">
             <span
@@ -1451,7 +1918,7 @@ function BannerPatternPicker({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex w-full items-center justify-between gap-2 rounded-lg border border-border bg-background px-3.5 py-2.5 text-left transition-colors hover:border-muted-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-border bg-background px-3.5 py-2.5 text-left transition-colors hover:border-muted-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <span className="flex items-center gap-2.5">
             <span

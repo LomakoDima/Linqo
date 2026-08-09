@@ -1,66 +1,27 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Rocket, ArrowRight, Palette, Share2, LayoutPanelTop, Zap } from "lucide-react";
-import type { Profile } from "@/lib/link-store";
 import { LinkPreview } from "@/components/LinkPreview";
 import { Reveal } from "@/components/Reveal";
 import { AnimatedWordmark } from "@/components/AnimatedWordmark";
 import { ThemeToggle } from "@/components/ThemeToggle";
-
-const exampleProfile: Profile = {
-  slug: "mayadesigns",
-  name: "Maya Reyes",
-  bio: "Graphic designer & illustrator\nBrand identity, editorial, and web ✨",
-  avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=Maya-Reyes&backgroundColor=b6e3f4",
-  cover: "",
-  theme: "sunset",
-  blocks: [
-    {
-      id: "e-social",
-      type: "social",
-      socials: [
-        { kind: "instagram", url: "https://instagram.com/mayadesigns" },
-        { kind: "dribbble", url: "https://dribbble.com/mayadesigns" },
-        { kind: "website", url: "https://mayareyes.design" },
-      ],
-    },
-    {
-      id: "e-banner",
-      type: "banner",
-      title: "My portfolio",
-      subtitle: "Branding, illustration & web design",
-      url: "https://mayareyes.design",
-      image: "",
-      bannerStyle: "sand",
-    },
-    {
-      id: "e-link",
-      type: "link",
-      title: "Book a design consult",
-      url: "https://mayareyes.design/contact",
-    },
-    {
-      id: "e-contact",
-      type: "contact",
-      email: "hello@mayareyes.design",
-      phone: "+1 (555) 018-2394",
-    },
-  ],
-};
+import { UserMenu } from "@/components/UserMenu";
+import { useAuth } from "@/lib/auth-context";
+import { exampleProfile } from "@/lib/example-profile";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Linqo — the multi-link builder" },
+      { title: "Linqo — Build your personal page, without code" },
       {
         name: "description",
         content:
-          "One link for every platform. Build a beautiful all-links page in a minute — no sign-up, no backend.",
+          "Build your personal page, without code. Pick a theme, add your links and music, and make it unmistakably yours.",
       },
-      { property: "og:title", content: "Linqo — the multi-link builder" },
+      { property: "og:title", content: "Linqo — Build your personal page, without code" },
       {
         property: "og:description",
-        content: "One link for every platform. Build a beautiful all-links page in a minute.",
+        content: "Build your personal page, without code — no design skills required.",
       },
     ],
   }),
@@ -69,24 +30,24 @@ export const Route = createFileRoute("/")({
 
 const FEATURES = [
   {
+    icon: LayoutPanelTop,
+    title: "Turn a bio link into a real page",
+    body: "One link, everywhere you post it — leading somewhere that actually looks like you, not a list of buttons.",
+  },
+  {
     icon: Palette,
-    title: "5 hand-tuned themes",
-    body: "Midnight, Paper, Sunset, Ocean, Forest — switch anytime, no design skills required.",
+    title: "Make it look like you",
+    body: "5 hand-tuned themes — Midnight, Paper, Sunset, Ocean, Forest. Switch anytime, no design skills required.",
   },
   {
     icon: Share2,
-    title: "20+ networks",
+    title: "Connect everything you create",
     body: "Instagram to Discord, Spotify to Threads, plus email and phone as their own contact block.",
-  },
-  {
-    icon: LayoutPanelTop,
-    title: "Rich blocks",
-    body: "Links, banners, headings, and images — arrange and reorder them however you like.",
   },
   {
     icon: Zap,
     title: "Nothing to host",
-    body: "Your page is encoded right into the link. Share it anywhere, no account or server needed.",
+    body: "Save your page to your account and share the link. We handle the rest.",
   },
 ];
 
@@ -109,6 +70,8 @@ const STEPS = [
 ];
 
 function LandingPage() {
+  const { user, signOut } = useAuth();
+
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur animate-fade-in">
@@ -123,20 +86,54 @@ function LandingPage() {
               delay={120}
               className="text-lg font-semibold tracking-tight"
             />
+            <span className="ml-2 hidden border-l border-border/60 pl-3 text-xs font-medium text-muted-foreground sm:inline">
+              Build your personal page, without code.
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <Button asChild size="sm">
-              <Link to="/build">
-                Open builder <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
+            {user ? (
+              <>
+                <Button asChild size="sm">
+                  <Link to="/build">
+                    Continue building <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+                <UserMenu
+                  user={user}
+                  onSignOut={() => {
+                    void signOut();
+                  }}
+                />
+              </>
+            ) : (
+              <>
+                <Button asChild variant="ghost" size="sm">
+                  <Link to="/login">Sign in</Link>
+                </Button>
+                <Button asChild size="sm">
+                  <Link to="/build">
+                    Start building <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </header>
 
       <main>
         <section className="relative mx-auto grid max-w-7xl gap-12 overflow-hidden px-6 py-20 lg:grid-cols-2 lg:items-center lg:py-28">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 -z-10 [mask-image:radial-gradient(ellipse_at_center,black,transparent_75%)]"
+            style={{
+              backgroundImage: "radial-gradient(currentColor 1px, transparent 1px)",
+              backgroundSize: "24px 24px",
+              color: "var(--color-foreground)",
+              opacity: 0.05,
+            }}
+          />
           <div
             aria-hidden
             className="animate-blob pointer-events-none absolute -left-24 -top-24 -z-10 h-72 w-72 rounded-full bg-primary/10 blur-3xl"
@@ -148,21 +145,22 @@ function LandingPage() {
           />
           <div className="flex flex-col justify-center">
             <p className="text-sm font-medium text-muted-foreground animate-slide-up">
-              One link. Every platform.
+              Your internet home.
             </p>
             <h1 className="mt-4 text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl animate-slide-up delay-100">
-              All your links,
+              Design a page
               <br />
-              one beautiful page.
+              people remember.
             </h1>
             <p className="mt-6 max-w-md text-lg text-muted-foreground animate-slide-up delay-200">
-              Linqo is a minimal link-in-bio builder. Add your socials, pick a theme, and share one
-              link — no sign-up, no backend, live in seconds.
+              Build your personal page, without code. Pick a theme, add your links and music, and
+              share one page that's unmistakably yours — create a free account to save and publish.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3 animate-slide-up delay-300">
               <Button asChild size="lg">
                 <Link to="/build">
-                  Start building <ArrowRight className="ml-2 h-4 w-4" />
+                  {user ? "Continue building" : "Start building"}{" "}
+                  <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
               <Button asChild variant="outline" size="lg">
@@ -170,10 +168,10 @@ function LandingPage() {
               </Button>
             </div>
             <div className="mt-10 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground animate-slide-up delay-400">
-              <span>No sign-up</span>
-              <span>No backend</span>
+              <span>Free account</span>
               <span>5 themes</span>
               <span>20+ socials</span>
+              <span>Custom music</span>
             </div>
           </div>
 
@@ -228,11 +226,12 @@ function LandingPage() {
               Ready to build yours?
             </h2>
             <p className="mx-auto mt-3 max-w-md text-muted-foreground">
-              It takes about a minute, and there's nothing to sign up for.
+              It takes about a minute — create a free account, add your links, and you're live.
             </p>
             <Button asChild size="lg" className="mt-8">
               <Link to="/build">
-                Start building <ArrowRight className="ml-2 h-4 w-4" />
+                {user ? "Continue building" : "Start building"}{" "}
+                <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
           </Reveal>

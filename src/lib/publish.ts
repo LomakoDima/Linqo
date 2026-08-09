@@ -1,87 +1,103 @@
-import { createServerFn } from "@tanstack/react-start";
-import { get, put } from "@vercel/blob";
 import { normalizeProfile, type Profile } from "@/lib/link-store";
+import { readJsonOrThrow } from "@/lib/http";
 
-// Same rule the slug input already enforces client-side — re-checked here
-// because this also doubles as the Blob pathname, so it's the one thing
-// that must never contain "/" or "..".
-const SLUG_PATTERN = /^[a-z0-9_-]{1,64}$/;
+// Talks to the standalone Express + Postgres API in backend/ — this used to
+// go through Vercel Blob for both profile storage and music files; now it's
+// our own service, reachable at VITE_API_URL (defaults to the local dev
+// server started by `npm run dev` / `dev:server`). Runs both client-side
+// and inside the SSR loader in routes/p.$slug.tsx, so this can't rely on
+// anything browser-only — plain fetch works in both.
+const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:3001";
 
-function blobPath(slug: string) {
-  return `profiles/${slug}.json`;
+// Publishing now requires the caller's session cookie — the API rejects (401)
+// an unclaimed session and (403) a slug someone else already owns.
+export async function publishProfile(
+  slug: string,
+  json: string,
+): Promise<{ ok: true; updatedAt: string }> {
+  const res = await fetch(`${API_URL}/api/profiles/${encodeURIComponent(slug)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: json,
+  });
+  return (await readJsonOrThrow(res)) as { ok: true; updatedAt: string };
 }
 
-export const publishProfile = createServerFn({ method: "POST" })
-  .validator((input: { slug: string; json: string }) => {
-    if (typeof input?.slug !== "string" || !SLUG_PATTERN.test(input.slug)) {
-      throw new Error("Invalid slug");
-    }
-    if (typeof input.json !== "string" || input.json.length > 400_000) {
-      throw new Error("Profile too large to publish");
-    }
-    return input;
-  })
-  .handler(async ({ data }) => {
-    await put(blobPath(data.slug), data.json, {
-      access: "private",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: "application/json",
-    });
-    return { ok: true as const };
-  });
+// The signed-in user's own saved page, if they've published one before —
+// lets the builder resume their real page instead of always starting blank.
+export async function getMyProfile(): Promise<{
+  slug: string;
+  profile: Profile;
+  updatedAt: string | null;
+} | null> {
+  const res = await fetch(`${API_URL}/api/me/profile`, { credentials: "include" });
+  if (!res.ok) return null;
+  const { profile } = (await res.json()) as {
+    profile: { slug: string; data: unknown; updatedAt: string | null } | null;
+  };
+  return profile
+    ? { slug: profile.slug, profile: normalizeProfile(profile.data), updatedAt: profile.updatedAt }
+    : null;
+}
 
-export const getPublishedProfile = createServerFn({ method: "GET" })
-  .validator((input: { slug: string }) => input)
-  .handler(async ({ data }): Promise<Profile | null> => {
-    if (!SLUG_PATTERN.test(data.slug)) return null;
-    try {
-      const result = await get(blobPath(data.slug), { access: "private", useCache: false });
-      if (!result || !result.stream) return null;
-      const text = await new Response(result.stream).text();
-      return normalizeProfile(JSON.parse(text));
-    } catch {
-      return null;
-    }
-  });
+// Advisory only — the authoritative check still happens server-side at
+// publish time (PUT /:slug's ownership check), so this never needs to be
+// more than "is this worth warning the user about right now". Short-
+// circuits when the typed slug is the one the caller already owns, so
+// switching back to your own current slug never round-trips to the server.
+export async function isSlugAvailable(slug: string, myOwnedSlug: string | null): Promise<boolean> {
+  if (slug === myOwnedSlug) return true;
+  try {
+    const res = await fetch(`${API_URL}/api/profiles/${encodeURIComponent(slug)}`);
+    if (!res.ok) return true;
+    const { profile } = (await res.json()) as { profile: unknown };
+    return profile === null;
+  } catch {
+    // Unreachable API shouldn't block typing — treat as unknown/available,
+    // the real gate is still the server at publish time.
+    return true;
+  }
+}
 
-// Background-music tracks are stored as their own Blob object (public, since
-// the visitor's <audio> tag has to fetch it directly) and only the resulting
-// URL goes into the profile JSON — the 400KB cap above is about that JSON
-// blob, not about the audio, so a several-MB track doesn't touch it.
-const MAX_MUSIC_BYTES = 6_000_000;
-const MUSIC_MIME_EXT: Record<string, string> = {
-  "audio/mpeg": "mp3",
-  "audio/mp3": "mp3",
-  "audio/wav": "wav",
-  "audio/x-wav": "wav",
-  "audio/ogg": "ogg",
-  "audio/mp4": "m4a",
-  "audio/x-m4a": "m4a",
-  "audio/aac": "aac",
-};
+export async function getPublishedProfile(slug: string): Promise<Profile | null> {
+  try {
+    const res = await fetch(`${API_URL}/api/profiles/${encodeURIComponent(slug)}`);
+    if (!res.ok) return null;
+    const { profile } = (await res.json()) as { profile: unknown };
+    return profile ? normalizeProfile(profile) : null;
+  } catch {
+    // Unreachable API (e.g. backend not running) shouldn't crash the public
+    // page — it just falls back to whatever routes/p.$slug.tsx does next
+    // (the URL-fragment or local-draft paths).
+    return null;
+  }
+}
 
-export const uploadMusicTrack = createServerFn({ method: "POST" })
-  .validator((input: { slug: string; base64: string; mimeType: string }) => {
-    if (typeof input?.slug !== "string" || !SLUG_PATTERN.test(input.slug)) {
-      throw new Error("Invalid slug");
-    }
-    const ext = MUSIC_MIME_EXT[input.mimeType];
-    if (!ext) throw new Error("Unsupported audio format");
-    if (typeof input.base64 !== "string" || input.base64.length === 0) {
-      throw new Error("No file data");
-    }
-    // Base64 runs ~4/3 the size of the raw bytes it encodes.
-    if (input.base64.length > (MAX_MUSIC_BYTES * 4) / 3) {
-      throw new Error("File too large");
-    }
-    return { ...input, ext };
-  })
-  .handler(async ({ data }): Promise<{ url: string }> => {
-    const blob = await put(`music/${data.slug}.${data.ext}`, Buffer.from(data.base64, "base64"), {
-      access: "public",
-      addRandomSuffix: true,
-      contentType: data.mimeType,
-    });
-    return { url: blob.url };
+export async function uploadMusicTrack(slug: string, file: File): Promise<{ url: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${API_URL}/api/music/${encodeURIComponent(slug)}`, {
+    method: "POST",
+    body: formData,
   });
+  const data = (await readJsonOrThrow(res)) as { url: string };
+  // The API returns a path relative to itself, not an absolute CDN URL like
+  // Vercel Blob used to — resolve it so the resulting <audio src> works.
+  return { url: new URL(data.url, API_URL).toString() };
+}
+
+// Unlike uploadMusicTrack, the images route requires auth (see
+// backend/routes/images.ts) — the resulting URL is embedded in a public
+// og:image meta tag, so credentials must travel with the request.
+export async function uploadOgImage(slug: string, file: File): Promise<{ url: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${API_URL}/api/images/${encodeURIComponent(slug)}`, {
+    method: "POST",
+    credentials: "include",
+    body: formData,
+  });
+  const data = (await readJsonOrThrow(res)) as { url: string };
+  return { url: new URL(data.url, API_URL).toString() };
+}

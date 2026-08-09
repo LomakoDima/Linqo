@@ -146,7 +146,7 @@ export function GuideTour({
           <h3 className="font-semibold">{step.title}</h3>
           <button
             onClick={onFinish}
-            className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="shrink-0 cursor-pointer rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label="Close tour"
           >
             <X className="h-4 w-4" />

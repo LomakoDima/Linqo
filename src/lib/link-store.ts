@@ -1,4 +1,18 @@
-export type LinkBlockType = "link" | "banner" | "header" | "social" | "contact" | "image" | "text";
+export type LinkBlockType =
+  | "link"
+  | "banner"
+  | "header"
+  | "social"
+  | "contact"
+  | "image"
+  | "text"
+  | "divider"
+  | "quote"
+  | "gallery"
+  | "video"
+  | "timeline"
+  | "countdown"
+  | "faq";
 
 export type SocialKind =
   | "instagram"
@@ -55,6 +69,79 @@ export type CoverType = "image" | "color";
 
 export type BannerLayout = "horizontal" | "vertical";
 
+// Every companion (pet) available today. New animals need an entry in the
+// CompanionRegistry (src/lib/companion-engine/registry.ts) — nothing in this
+// file changes beyond adding the id here and to COMPANIONS below.
+export type CompanionId = "bear" | "fox" | "panda" | "rabbit" | "cat" | "dog";
+
+// The corner of the cover/banner a companion calls home — where it spawns,
+// and what it wanders back toward when idle. It's a living NPC now (see
+// src/lib/companion-engine/), not a pinned decoration, so this is a "base",
+// not a fixed slot. Kept as a keyed registry rather than free x/y — same
+// convention as BANNER_STYLES/IMAGE_SHAPES — so future bases (by the avatar,
+// a specific block, ...) are just another entry in COMPANION_HOME_CORNERS.
+export type CompanionHomeCorner =
+  "banner-bottom-right" | "banner-bottom-left" | "banner-top-right" | "banner-top-left";
+
+export type CompanionSize = "sm" | "md" | "lg";
+
+// A personality preset layered on top of CompanionEngine's existing
+// idle-quirk/movement knobs (idleChance, walk speed, wander radius) — see
+// CompanionEngine.setBehavior(). "idle" is defined to reproduce today's
+// exact values (all multipliers 1.0), so it's a guaranteed no-op for every
+// profile saved before this existed.
+export type CompanionBehavior = "idle" | "explorer" | "playful" | "lazy";
+
+export interface CompanionSettings {
+  id: CompanionId;
+  // Undefined behaves as "banner-bottom-right".
+  home?: CompanionHomeCorner;
+  // Undefined behaves as "md".
+  size?: CompanionSize;
+  // Undefined behaves as "idle".
+  behavior?: CompanionBehavior;
+}
+
+export const COMPANION_BEHAVIORS: Record<
+  CompanionBehavior,
+  {
+    label: string;
+    blurb: string;
+    idleChanceMultiplier: number;
+    speedMultiplier: number;
+    wanderRadiusMultiplier: number;
+  }
+> = {
+  idle: {
+    label: "Idle",
+    blurb: "Mostly still — a little breathing, the occasional glance.",
+    idleChanceMultiplier: 1,
+    speedMultiplier: 1,
+    wanderRadiusMultiplier: 1,
+  },
+  explorer: {
+    label: "Explorer",
+    blurb: "Wanders further and more often, always checking the edges.",
+    idleChanceMultiplier: 1.6,
+    speedMultiplier: 1.15,
+    wanderRadiusMultiplier: 1.8,
+  },
+  playful: {
+    label: "Playful",
+    blurb: "Quick, twitchy, and quick to react — rarely sits still for long.",
+    idleChanceMultiplier: 2,
+    speedMultiplier: 1.35,
+    wanderRadiusMultiplier: 1.2,
+  },
+  lazy: {
+    label: "Lazy",
+    blurb: "Content to sit and watch — moves rarely, and never far.",
+    idleChanceMultiplier: 0.45,
+    speedMultiplier: 0.7,
+    wanderRadiusMultiplier: 0.6,
+  },
+};
+
 export type HeadingSize = "sm" | "md" | "lg" | "xl" | "2xl";
 
 export type TextAlign = "left" | "center" | "right";
@@ -97,6 +184,46 @@ export type BannerPattern =
   | "bolts"
   | "coral";
 
+export type DividerStyle = "solid" | "dashed" | "dotted" | "icon";
+
+// The finite set of icon names a "divider" block's icon style can use. Pure
+// data (no lucide-react import here — this file stays framework-free) —
+// LinkPreview.tsx and BlockEditor.tsx each map these names to their own
+// lucide icon component for rendering and for the picker, respectively.
+export const DIVIDER_ICON_NAMES = ["sparkles", "star", "heart", "sun", "moon", "feather"] as const;
+
+export type QuoteStyle = "plain" | "card" | "bigmark";
+
+export type GalleryLayout = "grid" | "carousel" | "masonry";
+
+export type VideoProvider = "youtube" | "vimeo" | "file";
+
+export type VideoAspect = "16:9" | "9:16" | "1:1";
+
+export type CountdownStyle = "digits" | "words";
+
+export type FaqDefaultOpen = "first" | "none" | "all";
+
+export interface GalleryImageItem {
+  id: string;
+  image: string;
+  imageName?: string;
+  caption?: string;
+}
+
+export interface TimelineItem {
+  id: string;
+  title: string;
+  date?: string;
+  description?: string;
+}
+
+export interface FaqItem {
+  id: string;
+  question: string;
+  answer: string;
+}
+
 export interface LinkBlock {
   id: string;
   type: LinkBlockType;
@@ -119,6 +246,11 @@ export interface LinkBlock {
   // "image" block crop. Undefined behaves as "rounded" (natural proportions),
   // matching image blocks created before this field existed.
   imageShape?: ImageShape;
+  // 0-100; how opaque the "image" block's picture is over the page
+  // background. Undefined behaves as 100 (fully opaque), matching image
+  // blocks created before this field existed — same convention as
+  // bannerOpacity below.
+  imageOpacity?: number;
   bannerStyle?: BannerStyle;
   // When true, the fields below replace bannerStyle entirely with a
   // hand-picked color or gradient instead of one of the curated presets.
@@ -172,6 +304,50 @@ export interface LinkBlock {
   textItalic?: boolean;
   textUnderline?: boolean;
   textStrikethrough?: boolean;
+  // "divider" block. Undefined behaves as "solid"; dividerIcon (a lucide
+  // icon name) only applies when dividerStyle is "icon"; undefined
+  // dividerColor falls back to the theme's own muted color.
+  dividerStyle?: DividerStyle;
+  dividerIcon?: string;
+  dividerColor?: string;
+  // "quote" block. Undefined quoteStyle behaves as "plain".
+  quoteText?: string;
+  quoteAuthor?: string;
+  quoteFont?: string;
+  quoteColor?: string;
+  quoteAlign?: TextAlign;
+  quoteSize?: HeadingSize;
+  quoteStyle?: QuoteStyle;
+  // "gallery" block. Undefined galleryImages behaves as [] (empty gallery,
+  // same convention as resolveTextRuns falling back on an empty array).
+  // Undefined galleryLayout behaves as "grid"; undefined galleryShape reuses
+  // ImageShape and behaves as "rounded".
+  galleryImages?: GalleryImageItem[];
+  galleryLayout?: GalleryLayout;
+  galleryShape?: ImageShape;
+  // "video" block. Undefined videoProvider is inferred from videoUrl at
+  // render time. Undefined videoAutoplay behaves as false; undefined
+  // videoAspect behaves as "16:9".
+  videoUrl?: string;
+  videoProvider?: VideoProvider;
+  videoTitle?: string;
+  videoAutoplay?: boolean;
+  videoAspect?: VideoAspect;
+  // "timeline" block. Undefined timelineItems behaves as [].  Undefined
+  // timelineOrientation behaves as "vertical".
+  timelineItems?: TimelineItem[];
+  timelineOrientation?: "vertical" | "horizontal";
+  // "countdown" block. countdownTarget is an ISO date string. Undefined
+  // countdownStyle behaves as "digits"; undefined countdownExpiredMessage
+  // behaves as "We're live!".
+  countdownTarget?: string;
+  countdownLabel?: string;
+  countdownStyle?: CountdownStyle;
+  countdownExpiredMessage?: string;
+  // "faq" block. Undefined faqItems behaves as []. Undefined
+  // faqDefaultOpen behaves as "none".
+  faqItems?: FaqItem[];
+  faqDefaultOpen?: FaqDefaultOpen;
 }
 
 export type ThemeName =
@@ -213,16 +389,141 @@ export type MusicGenre =
   | "acoustic"
   | "upbeat";
 
+// Which real-time visualization plays next to the "now playing" pill once a
+// track is actually running (see AudioVisualizer) — "off" keeps the plain
+// icon + label with no motion. Undefined behaves as "bars", matching music
+// widgets created before this existed.
+export type MusicVisualizerStyle =
+  "bars" | "wave" | "pulse" | "waveform" | "circular" | "spectrum" | "off";
+
+// Undefined behaves as "md" / "right", matching widgets created before
+// these existed.
+export type MusicVisualizerSize = "sm" | "md" | "lg";
+export type MusicVisualizerPosition = "left" | "center" | "right";
+
 export interface MusicSettings {
   enabled: boolean;
   genre?: MusicGenre;
   // A URL to the track — either pasted in directly, or filled in after an
-  // upload (see uploadMusicTrack in lib/publish.ts, which stores the file as
-  // its own Blob object rather than embedding it in the profile JSON, since
-  // that JSON has a ~400KB budget an audio file would blow straight through).
+  // upload (see uploadMusicTrack in lib/publish.ts, which stores the file
+  // in the backend's own database rather than embedding it in the profile
+  // JSON, since that JSON has a ~400KB budget an audio file would blow
+  // straight through).
   url?: string;
   loop?: boolean;
   volume?: number;
+  visualizer?: MusicVisualizerStyle;
+  visualizerSize?: MusicVisualizerSize;
+  visualizerPosition?: MusicVisualizerPosition;
+  // 0-100; undefined behaves as 100 (fully opaque), matching widgets created
+  // before this field existed — same convention as bannerOpacity.
+  visualizerOpacity?: number;
+  // 0-100; how squared-off (0) vs. pill-rounded (100) the bars/waveform
+  // read. Undefined behaves as 100 — today's fixed roundness — so existing
+  // profiles render pixel-identical to before this field existed.
+  visualizerRoundness?: number;
+  // A multiplier on the visualizer's own animation timing (envelope/idle
+  // motion), not playback speed. Undefined behaves as 1 — today's exact
+  // constants.
+  visualizerSpeed?: number;
+  // Hex/rgba override. Undefined falls back to the existing genre.light-based
+  // black/white contrast logic in NowPlayingWidget.
+  visualizerColor?: string;
+}
+
+// The 10 environmental sound categories layerable underneath (or instead
+// of) Background Music, each with independent volume. Unlike MUSIC_GENRES,
+// there is no bundled/curated audio here — this app has never shipped real
+// hosted audio (see MUSIC_GENRES.tracks, always empty) — each layer is a
+// user-supplied upload or URL, same convention as MusicSettings.url.
+export type AmbientSoundKind =
+  | "rain"
+  | "forest"
+  | "ocean"
+  | "wind"
+  | "night"
+  | "coffee-shop"
+  | "fireplace"
+  | "thunder"
+  | "river"
+  | "birds";
+
+export interface AmbientLayer {
+  kind: AmbientSoundKind;
+  enabled: boolean;
+  url?: string;
+  urlName?: string;
+  // 0-100; undefined behaves as 50.
+  volume?: number;
+}
+
+export interface AmbientSettings {
+  enabled: boolean;
+  // Undefined behaves as [] — same "absent means empty list" convention as
+  // LinkBlock.galleryImages/timelineItems/faqItems.
+  layers?: AmbientLayer[];
+}
+
+export const AMBIENT_SOUNDS: Record<AmbientSoundKind, { label: string; blurb: string }> = {
+  rain: { label: "Rain", blurb: "Steady rainfall." },
+  forest: { label: "Forest", blurb: "Rustling leaves, distant birdsong." },
+  ocean: { label: "Ocean", blurb: "Rolling waves." },
+  wind: { label: "Wind", blurb: "A soft, steady breeze." },
+  night: { label: "Night", blurb: "Crickets and quiet dark." },
+  "coffee-shop": { label: "Coffee Shop", blurb: "Murmured chatter, cups and saucers." },
+  fireplace: { label: "Fireplace", blurb: "A crackling, popping fire." },
+  thunder: { label: "Thunder", blurb: "Distant rolling thunder." },
+  river: { label: "River", blurb: "A running stream." },
+  birds: { label: "Birds", blurb: "Morning birdsong." },
+};
+
+// A single decorative effect drifting over the whole page — one active kind
+// at a time (alternatives, not a layered stack like Ambient Sounds).
+export type ParticleKind =
+  | "snow"
+  | "rain"
+  | "leaves"
+  | "stars"
+  | "fireflies"
+  | "sakura"
+  | "dust"
+  | "bubbles"
+  | "hearts"
+  | "sparkles";
+
+export interface ParticleSettings {
+  enabled: boolean;
+  // Undefined behaves as "snow".
+  kind?: ParticleKind;
+  // Particles on screen at once. Undefined uses the kind's own default.
+  density?: number;
+  // Fall/drift speed multiplier. Undefined uses the kind's own default.
+  speed?: number;
+  // Size multiplier. Undefined uses the kind's own default.
+  size?: number;
+  // 0-100. Undefined uses the kind's own default.
+  opacity?: number;
+  // Hex/rgba override. Undefined uses the kind's own default (or the
+  // page theme's accent color, per-kind).
+  color?: string;
+}
+
+// Real, working page-wide visual effects (see LinkPreview) — each toggle is
+// independent and narrowly scoped to one overlay or one existing usage site,
+// not a full re-theme. Undefined behaves as false/off throughout.
+export interface EffectsSettings {
+  glass?: boolean;
+  noise?: boolean;
+  // 0-100; undefined behaves as 30.
+  noiseIntensity?: number;
+  glow?: boolean;
+  // 0-100; undefined behaves as 50.
+  glowIntensity?: number;
+  gradientAnimation?: boolean;
+  // Blurs the existing background image layer only — a no-op without one.
+  blur?: boolean;
+  // 0-100; undefined behaves as 40.
+  blurIntensity?: number;
 }
 
 export interface Profile {
@@ -236,12 +537,42 @@ export interface Profile {
   name: string;
   bio: string;
   theme: ThemeName;
+  // Hex override for the active theme's own `accentHex`. Undefined falls
+  // back to THEMES[theme].accentHex.
+  accentColor?: string;
   // Optional photo layered behind the theme's colors/gradient as the page
   // background, scrimmed for text contrast. Independent of `theme` itself so
   // any theme's palette (card/text/accent colors) still applies on top of it.
   bgImage?: string;
   bgImageName?: string;
+  // The page's base background, independent of `theme` — same coverType/
+  // coverStyle pattern Cover already uses. Undefined behaves as "image"
+  // (today's only-ever-image behavior); "color" replaces theme.bg's
+  // background (not its text color) with a BANNER_STYLES swatch.
+  bgType?: CoverType;
+  bgStyle?: BannerStyle;
+  // A decorative, page-wide visual treatment layer (Glass/Noise/Glow/
+  // Gradient Animation/Blur) — distinct from `particles`, a single drifting
+  // sprite effect edited from the Atmosphere tab.
+  effects?: EffectsSettings;
   music?: MusicSettings;
+  // Environmental sound layers — independent of, and mixable with, music.
+  ambient?: AmbientSettings;
+  // A decorative effect drifting over the whole page.
+  particles?: ParticleSettings;
+  // A pet sticker layered on top of the cover/banner. Undefined means none.
+  companion?: CompanionSettings;
+  // Undefined -> falls back to name || slug at render sites (public page
+  // <head>, Social Preview card).
+  seoTitle?: string;
+  // Undefined -> falls back to bio.
+  seoDescription?: string;
+  // A real hosted URL (from uploadOgImage — never a data: URL, since social
+  // crawlers fetch og:image directly and can't resolve one). Undefined ->
+  // falls back to avatar for in-app preview only, then a generated
+  // placeholder; the public <head> only ever emits a real ogImage URL.
+  ogImage?: string;
+  ogImageName?: string;
   blocks: LinkBlock[];
   // id of the template gallery card last applied — drives the "in use" badge
   // there. Defaults to "standard" (the blank starting point) for new profiles.
@@ -260,6 +591,13 @@ export const THEMES: Record<
     accent: string;
     label: string;
     kind: ThemeKind;
+    // Mirrors BANNER_STYLES' existing convention — used to pick a readable
+    // glass/noise overlay color per theme.
+    light: boolean;
+    // A real hex counterpart to `accent` (a Tailwind class string, which
+    // can't be dropped into a CSS radial-gradient()/box-shadow value) — used
+    // by Glow, Gradient Animation, and Accent Color's own default.
+    accentHex: string;
   }
 > = {
   dark: {
@@ -270,6 +608,8 @@ export const THEMES: Record<
     text: "text-white",
     muted: "text-white/60",
     accent: "text-orange-400",
+    light: false,
+    accentHex: "#fb923c",
   },
   light: {
     label: "Paper",
@@ -279,6 +619,8 @@ export const THEMES: Record<
     text: "text-neutral-900",
     muted: "text-neutral-500",
     accent: "text-orange-600",
+    light: true,
+    accentHex: "#ea580c",
   },
   sunset: {
     label: "Sunset",
@@ -288,6 +630,8 @@ export const THEMES: Record<
     text: "text-white",
     muted: "text-orange-100/70",
     accent: "text-orange-300",
+    light: false,
+    accentHex: "#fdba74",
   },
   ocean: {
     label: "Ocean",
@@ -297,6 +641,8 @@ export const THEMES: Record<
     text: "text-white",
     muted: "text-cyan-100/70",
     accent: "text-cyan-300",
+    light: false,
+    accentHex: "#67e8f9",
   },
   forest: {
     label: "Forest",
@@ -306,6 +652,8 @@ export const THEMES: Record<
     card: "bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/30",
     muted: "text-emerald-100/70",
     accent: "text-emerald-300",
+    light: false,
+    accentHex: "#6ee7b7",
   },
   aurora: {
     label: "Aurora",
@@ -315,6 +663,8 @@ export const THEMES: Record<
     text: "text-white",
     muted: "text-teal-100/70",
     accent: "text-teal-300",
+    light: false,
+    accentHex: "#5eead4",
   },
   candy: {
     label: "Candy",
@@ -324,6 +674,8 @@ export const THEMES: Record<
     text: "text-white",
     muted: "text-pink-100/70",
     accent: "text-pink-300",
+    light: false,
+    accentHex: "#f9a8d4",
   },
   slate: {
     label: "Slate",
@@ -333,6 +685,8 @@ export const THEMES: Record<
     text: "text-white",
     muted: "text-slate-300/70",
     accent: "text-sky-400",
+    light: false,
+    accentHex: "#38bdf8",
   },
   blush: {
     label: "Blush",
@@ -342,6 +696,8 @@ export const THEMES: Record<
     text: "text-neutral-900",
     muted: "text-rose-500/70",
     accent: "text-rose-600",
+    light: true,
+    accentHex: "#e11d48",
   },
   lavender: {
     label: "Lavender",
@@ -351,6 +707,8 @@ export const THEMES: Record<
     text: "text-neutral-900",
     muted: "text-purple-700/60",
     accent: "text-purple-600",
+    light: true,
+    accentHex: "#9333ea",
   },
   citrus: {
     label: "Citrus",
@@ -360,6 +718,8 @@ export const THEMES: Record<
     text: "text-white",
     muted: "text-amber-100/70",
     accent: "text-amber-300",
+    light: false,
+    accentHex: "#fcd34d",
   },
   mint: {
     label: "Mint",
@@ -369,6 +729,8 @@ export const THEMES: Record<
     text: "text-neutral-900",
     muted: "text-emerald-600/70",
     accent: "text-emerald-600",
+    light: true,
+    accentHex: "#059669",
   },
   noir: {
     label: "Noir",
@@ -378,6 +740,8 @@ export const THEMES: Record<
     text: "text-white",
     muted: "text-white/50",
     accent: "text-white",
+    light: false,
+    accentHex: "#ffffff",
   },
   charcoal: {
     label: "Charcoal",
@@ -387,6 +751,8 @@ export const THEMES: Record<
     text: "text-white",
     muted: "text-white/55",
     accent: "text-orange-300",
+    light: false,
+    accentHex: "#fdba74",
   },
   cream: {
     label: "Cream",
@@ -396,6 +762,8 @@ export const THEMES: Record<
     text: "text-neutral-900",
     muted: "text-neutral-500",
     accent: "text-amber-600",
+    light: true,
+    accentHex: "#d97706",
   },
   navy: {
     label: "Navy",
@@ -405,6 +773,8 @@ export const THEMES: Record<
     text: "text-white",
     muted: "text-blue-100/70",
     accent: "text-blue-300",
+    light: false,
+    accentHex: "#93c5fd",
   },
   sage: {
     label: "Sage",
@@ -414,6 +784,8 @@ export const THEMES: Record<
     text: "text-neutral-900",
     muted: "text-green-700/60",
     accent: "text-green-700",
+    light: true,
+    accentHex: "#15803d",
   },
   plum: {
     label: "Plum",
@@ -423,6 +795,8 @@ export const THEMES: Record<
     text: "text-white",
     muted: "text-fuchsia-100/70",
     accent: "text-fuchsia-300",
+    light: false,
+    accentHex: "#f0abfc",
   },
   tan: {
     label: "Tan",
@@ -432,6 +806,8 @@ export const THEMES: Record<
     text: "text-neutral-900",
     muted: "text-amber-800/60",
     accent: "text-amber-800",
+    light: true,
+    accentHex: "#92400e",
   },
   steel: {
     label: "Steel",
@@ -441,6 +817,8 @@ export const THEMES: Record<
     text: "text-white",
     muted: "text-slate-200/70",
     accent: "text-cyan-300",
+    light: false,
+    accentHex: "#67e8f9",
   },
   peach: {
     label: "Peach",
@@ -450,6 +828,8 @@ export const THEMES: Record<
     text: "text-neutral-900",
     muted: "text-orange-700/60",
     accent: "text-orange-600",
+    light: true,
+    accentHex: "#ea580c",
   },
   grape: {
     label: "Grape",
@@ -459,6 +839,8 @@ export const THEMES: Record<
     text: "text-white",
     muted: "text-purple-100/70",
     accent: "text-purple-300",
+    light: false,
+    accentHex: "#d8b4fe",
   },
   arctic: {
     label: "Arctic",
@@ -468,6 +850,8 @@ export const THEMES: Record<
     text: "text-neutral-900",
     muted: "text-sky-700/60",
     accent: "text-sky-600",
+    light: true,
+    accentHex: "#0284c7",
   },
   wildfire: {
     label: "Wildfire",
@@ -477,6 +861,8 @@ export const THEMES: Record<
     text: "text-white",
     muted: "text-red-100/70",
     accent: "text-red-300",
+    light: false,
+    accentHex: "#fca5a5",
   },
   twilight: {
     label: "Twilight",
@@ -486,6 +872,8 @@ export const THEMES: Record<
     text: "text-white",
     muted: "text-indigo-100/70",
     accent: "text-indigo-300",
+    light: false,
+    accentHex: "#a5b4fc",
   },
 };
 
@@ -662,6 +1050,42 @@ export const BANNER_STYLES: Record<
   },
 };
 
+// Pet stickers available in the builder today — every file already sitting
+// in public/companions/. Adding a new animal is exactly one row here plus
+// its image in that folder.
+// `portrait` is the one piece of art each animal has today — a single
+// pixel-art pose. The companion engine (src/lib/companion-engine/) bakes a
+// full animated sprite sheet out of it at runtime (see spriteSheetBaker).
+// Swapping in a hand-drawn multi-frame sheet later is just setting
+// `spriteSheet` on that animal's CompanionRegistry entry — this label/portrait
+// pair is only ever consumed by the builder's picker gallery and the baker.
+export const COMPANIONS: Record<CompanionId, { label: string; portrait: string }> = {
+  bear: { label: "Bear", portrait: "/companions/bear.png" },
+  fox: { label: "Fox", portrait: "/companions/fox.png" },
+  panda: { label: "Panda", portrait: "/companions/panda.png" },
+  rabbit: { label: "Rabbit", portrait: "/companions/rabbit.png" },
+  cat: { label: "Cat", portrait: "/companions/cat.png" },
+  dog: { label: "Dog", portrait: "/companions/dog.png" },
+};
+
+// Labels only — the engine resolves a corner id to an actual point on the
+// page at runtime (it depends on the live layout, not anything static enough
+// to put here). See CompanionEngine's home-corner resolution.
+export const COMPANION_HOME_CORNERS: Record<CompanionHomeCorner, { label: string }> = {
+  "banner-bottom-right": { label: "Bottom right" },
+  "banner-bottom-left": { label: "Bottom left" },
+  "banner-top-right": { label: "Top right" },
+  "banner-top-left": { label: "Top left" },
+};
+
+// `px` is the companion's on-page footprint (sprite box side length, in CSS
+// pixels) — the engine sizes its canvas from this directly.
+export const COMPANION_SIZES: Record<CompanionSize, { label: string; px: number }> = {
+  sm: { label: "S", px: 48 },
+  md: { label: "M", px: 64 },
+  lg: { label: "L", px: 84 },
+};
+
 export const HEADING_SIZES: Record<HeadingSize, { label: string; className: string }> = {
   sm: { label: "Small", className: "text-xs" },
   md: { label: "Medium", className: "text-sm" },
@@ -689,14 +1113,25 @@ export const IMAGE_SHAPES: Record<
   portrait: { label: "Portrait", boxClassName: "aspect-[3/4] rounded-2xl", hasFixedAspect: true },
 };
 
-// A vibe picker, not a song catalog — there's nowhere for this app to host
-// actual tracks (see MusicSettings.url), so each genre is just a premium-
-// looking banner + label the profile owner picks to tag their own link.
-// `image`, where set, replaces the gradient+icon+label with an illustrated
-// banner (its own label/blurb already baked into the artwork).
+// A vibe picker first, an optional sample playlist second — there's nowhere
+// for this app to host actual tracks itself (see MusicSettings.url), so
+// `tracks` starts undefined/empty for every genre below. It exists so a
+// deployment that *does* have somewhere to host samples (its own backend,
+// a curated CDN list, whatever) can populate it per genre; GenrePlaylistModal
+// already renders real "Use" rows the moment a genre has any. `image`,
+// where set, replaces the gradient+icon+label with an illustrated banner
+// (its own label/blurb already baked into the artwork).
 export const MUSIC_GENRES: Record<
   MusicGenre,
-  { label: string; blurb: string; gradient: string; ring: string; light: boolean; image?: string }
+  {
+    label: string;
+    blurb: string;
+    gradient: string;
+    ring: string;
+    light: boolean;
+    image?: string;
+    tracks?: { label: string; url: string }[];
+  }
 > = {
   lofi: {
     label: "Lo-fi",
@@ -778,6 +1213,28 @@ export const MUSIC_GENRES: Record<
     light: false,
     image: "/banners/upbeat.jpg",
   },
+};
+
+export const MUSIC_VISUALIZER_STYLES: Record<MusicVisualizerStyle, { label: string }> = {
+  bars: { label: "Bars" },
+  wave: { label: "Wave" },
+  pulse: { label: "Pulse" },
+  waveform: { label: "Waveform" },
+  circular: { label: "Circular" },
+  spectrum: { label: "Spectrum" },
+  off: { label: "Off" },
+};
+
+export const MUSIC_VISUALIZER_SIZES: Record<MusicVisualizerSize, { label: string }> = {
+  sm: { label: "S" },
+  md: { label: "M" },
+  lg: { label: "L" },
+};
+
+export const MUSIC_VISUALIZER_POSITIONS: Record<MusicVisualizerPosition, { label: string }> = {
+  left: { label: "Left" },
+  center: { label: "Center" },
+  right: { label: "Right" },
 };
 
 // Geometric line-art motifs available to every banner color equally — pattern
@@ -940,6 +1397,27 @@ export const defaultProfile: Profile = {
   templateId: "standard",
 };
 
+function normalizeCompanion(raw: unknown): CompanionSettings | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  // `position` is what this field was called before companions became a
+  // living NPC instead of a pinned badge — still read here so profiles saved
+  // under the old shape keep their corner instead of resetting to default.
+  const r = raw as Partial<CompanionSettings> & { position?: unknown };
+  if (typeof r.id !== "string" || !(r.id in COMPANIONS)) return undefined;
+  const home = typeof r.home === "string" ? r.home : r.position;
+  return {
+    id: r.id as CompanionId,
+    home:
+      typeof home === "string" && home in COMPANION_HOME_CORNERS
+        ? (home as CompanionHomeCorner)
+        : undefined,
+    size:
+      typeof r.size === "string" && r.size in COMPANION_SIZES
+        ? (r.size as CompanionSize)
+        : undefined,
+  };
+}
+
 export function normalizeProfile(raw: unknown): Profile {
   const r = (raw && typeof raw === "object" ? raw : {}) as Partial<Profile>;
   return {
@@ -954,9 +1432,25 @@ export function normalizeProfile(raw: unknown): Profile {
     coverStyle:
       typeof r.coverStyle === "string" && r.coverStyle in BANNER_STYLES ? r.coverStyle : undefined,
     theme: typeof r.theme === "string" && r.theme in THEMES ? r.theme : defaultProfile.theme,
+    accentColor: typeof r.accentColor === "string" ? r.accentColor : undefined,
     bgImage: typeof r.bgImage === "string" ? r.bgImage : undefined,
     bgImageName: typeof r.bgImageName === "string" ? r.bgImageName : undefined,
+    bgType: r.bgType === "color" ? "color" : "image",
+    bgStyle: typeof r.bgStyle === "string" && r.bgStyle in BANNER_STYLES ? r.bgStyle : undefined,
+    effects:
+      r.effects && typeof r.effects === "object" ? (r.effects as EffectsSettings) : undefined,
     music: r.music && typeof r.music === "object" ? (r.music as MusicSettings) : undefined,
+    ambient:
+      r.ambient && typeof r.ambient === "object" ? (r.ambient as AmbientSettings) : undefined,
+    particles:
+      r.particles && typeof r.particles === "object"
+        ? (r.particles as ParticleSettings)
+        : undefined,
+    companion: normalizeCompanion(r.companion),
+    seoTitle: typeof r.seoTitle === "string" ? r.seoTitle : undefined,
+    seoDescription: typeof r.seoDescription === "string" ? r.seoDescription : undefined,
+    ogImage: typeof r.ogImage === "string" ? r.ogImage : undefined,
+    ogImageName: typeof r.ogImageName === "string" ? r.ogImageName : undefined,
     blocks: Array.isArray(r.blocks) ? r.blocks : defaultProfile.blocks,
     templateId: typeof r.templateId === "string" ? r.templateId : defaultProfile.templateId,
   };

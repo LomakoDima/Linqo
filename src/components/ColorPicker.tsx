@@ -29,7 +29,7 @@ export function ColorPicker({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex items-center gap-2.5 rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm transition-all duration-200 hover:border-muted-foreground/30 hover:bg-muted/50 active:scale-[0.98]"
+          className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm transition-all duration-200 hover:border-muted-foreground/30 hover:bg-muted/50 active:scale-[0.98]"
         >
           <span
             className={`h-6 w-9 shrink-0 rounded-md ring-1 ring-black/10 ${current.gradient}`}
@@ -92,7 +92,7 @@ function ColorSwatch({
       onClick={onSelect}
       title={s.label}
       aria-label={s.label}
-      className={`relative h-9 w-9 shrink-0 rounded-lg transition-all duration-200 hover:scale-110 active:scale-95 ${s.gradient} ${
+      className={`relative h-9 w-9 shrink-0 cursor-pointer rounded-lg transition-all duration-200 hover:scale-110 active:scale-95 ${s.gradient} ${
         active
           ? "ring-2 ring-primary ring-offset-2 ring-offset-popover"
           : "ring-1 ring-border hover:ring-muted-foreground/40"

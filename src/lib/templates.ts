@@ -19,7 +19,7 @@ export const TEMPLATES: Template[] = [
   {
     id: "creator",
     name: "Creator",
-    description: "Socials up front, a big banner for your latest drop.",
+    description: "Socials up front, a big banner for your latest drop, and a bold display heading.",
     theme: "sunset",
     blocks: [
       {
@@ -31,47 +31,93 @@ export const TEMPLATES: Template[] = [
         ],
       },
       {
+        type: "header",
+        title: "New this week",
+        headingFont: "unbounded",
+        headingSize: "sm",
+        headingUppercase: true,
+        headingBold: true,
+      },
+      {
         type: "banner",
-        title: "My latest video",
-        subtitle: "Watch the newest upload",
+        title: "Watch the latest upload",
+        subtitle: "New video every Tuesday",
         url: "https://",
         bannerStyle: "ember",
         bannerPattern: "sparkle",
+        tall: true,
       },
-      { type: "link", title: "Subscribe", url: "https://" },
-      { type: "link", title: "Merch store", url: "https://" },
+      {
+        type: "text",
+        title: "Behind-the-scenes clips, drops, and the odd unhinged livestream — all here first.",
+        textFont: "outfit",
+        textAlign: "center",
+        textColor: "#fdba9d",
+      },
+      { type: "link", title: "Subscribe on YouTube", url: "https://" },
+      { type: "link", title: "Shop the merch drop", url: "https://" },
     ],
   },
   {
     id: "portfolio",
     name: "Portfolio",
-    description: "A bento-style showcase for work samples and a hire link.",
+    description: "A restrained case-study layout with a vertical feature and a mono-styled label.",
     theme: "slate",
     blocks: [
-      { type: "header", title: "Selected work" },
+      {
+        type: "header",
+        title: "Selected work",
+        headingFont: "ibm-plex-mono",
+        headingSize: "sm",
+        headingUppercase: true,
+        headingColor: "#7dd3fc",
+      },
+      {
+        type: "text",
+        title:
+          "Product designer. I build interfaces for teams that ship fast and still sweat the details.",
+        textFont: "manrope",
+        textSize: "md",
+      },
       {
         type: "banner",
         title: "Featured project",
-        subtitle: "Case study",
+        subtitle: "Case study — read the breakdown",
         url: "https://",
         bannerStyle: "midnight",
         bannerLayout: "vertical",
         bannerPattern: "none",
+        tall: true,
       },
-      { type: "image", image: "", url: "https://" },
-      { type: "link", title: "View full portfolio", url: "https://" },
+      { type: "image", image: "", url: "https://", imageShape: "landscape" },
+      { type: "link", title: "View the full portfolio", url: "https://" },
+      { type: "link", title: "Download my résumé", url: "https://" },
       { type: "contact", email: "", phone: "" },
     ],
   },
   {
     id: "business",
     name: "Business",
-    description: "Clean and simple — services, booking link, and contact info.",
+    description: "Clean and simple — a services header, booking link, pricing, and contact info.",
     theme: "light",
     blocks: [
-      { type: "header", title: "Services" },
-      { type: "link", title: "Book a consultation", url: "https://" },
-      { type: "link", title: "View pricing", url: "https://" },
+      {
+        type: "header",
+        title: "Services",
+        headingFont: "manrope",
+        headingSize: "sm",
+        headingBold: true,
+      },
+      {
+        type: "text",
+        title:
+          "Straightforward help, no jargon. Tell me what you're stuck on and I'll tell you if I can fix it.",
+        textFont: "manrope",
+        textSize: "sm",
+      },
+      { type: "link", title: "Book a 30-minute call", url: "https://" },
+      { type: "link", title: "See pricing & packages", url: "https://" },
+      { type: "link", title: "Read client reviews", url: "https://" },
       {
         type: "social",
         socials: [
@@ -85,19 +131,32 @@ export const TEMPLATES: Template[] = [
   {
     id: "musician",
     name: "Musician",
-    description: "Lead with a release banner, then streaming links and tour dates.",
+    description:
+      "A tall release banner under a serif wordmark, then streaming links and tour dates.",
     theme: "grape",
     blocks: [
       {
-        type: "banner",
+        type: "header",
         title: "New single out now",
-        subtitle: "Stream everywhere",
+        headingFont: "fraunces",
+        headingSize: "lg",
+        headingUseGradient: true,
+        headingGradientFrom: "#e9d5ff",
+        headingGradientTo: "#f0abfc",
+        headingUppercase: false,
+      },
+      {
+        type: "banner",
+        title: "Stream it everywhere",
+        subtitle: "Recorded in analog, mixed at 2am",
         url: "https://",
         bannerStyle: "violet",
         bannerPattern: "stars",
+        tall: true,
       },
       { type: "link", title: "Listen on Spotify", url: "https://" },
-      { type: "link", title: "Tour dates", url: "https://" },
+      { type: "link", title: "Listen on Apple Music", url: "https://" },
+      { type: "link", title: "Tour dates & tickets", url: "https://" },
       {
         type: "social",
         socials: [
@@ -122,13 +181,21 @@ export const TEMPLATES: Template[] = [
   {
     id: "streamer",
     name: "Streamer",
-    description: "Go-live banner, socials, and support links for a gaming audience.",
+    description: "A go-live banner under a mono-tag heading, socials, and support links.",
     theme: "twilight",
     blocks: [
       {
-        type: "banner",
+        type: "header",
         title: "Live on Twitch",
-        subtitle: "Tap in for the schedule",
+        headingFont: "jetbrains-mono",
+        headingSize: "sm",
+        headingUppercase: true,
+        headingColor: "#c4b5fd",
+      },
+      {
+        type: "banner",
+        title: "Streaming most nights",
+        subtitle: "Chat's always open — pull up",
         url: "https://",
         bannerStyle: "storm",
         bannerPattern: "bolts",
@@ -142,24 +209,33 @@ export const TEMPLATES: Template[] = [
         ],
       },
       { type: "link", title: "Support the stream", url: "https://" },
+      { type: "link", title: "Stream schedule", url: "https://" },
     ],
   },
   {
     id: "podcast",
     name: "Podcast",
-    description: "A new-episode banner, listening links, and your show's socials.",
+    description: "An editorial new-episode banner, listening links, and your show's socials.",
     theme: "navy",
     blocks: [
       {
-        type: "banner",
+        type: "header",
         title: "New episode is live",
-        subtitle: "Tune in now",
+        headingFont: "spectral",
+        headingSize: "md",
+        headingUppercase: false,
+      },
+      {
+        type: "banner",
+        title: "Tune in now",
+        subtitle: "New episodes every Thursday",
         url: "https://",
         bannerStyle: "teal",
         bannerPattern: "ripples",
       },
       { type: "link", title: "Listen on Spotify", url: "https://" },
       { type: "link", title: "Listen on Apple Podcasts", url: "https://" },
+      { type: "link", title: "Watch on YouTube", url: "https://" },
       {
         type: "social",
         socials: [
@@ -173,11 +249,25 @@ export const TEMPLATES: Template[] = [
   {
     id: "photographer",
     name: "Photographer",
-    description: "A gallery-style layout for recent work, a booking link, and contact info.",
+    description: "An airy gallery layout for recent work, a booking link, and contact info.",
     theme: "arctic",
     blocks: [
-      { type: "header", title: "Recent work" },
-      { type: "image", image: "", url: "https://" },
+      {
+        type: "header",
+        title: "Recent work",
+        headingFont: "urbanist",
+        headingSize: "sm",
+        headingColor: "#0369a1",
+      },
+      { type: "image", image: "", url: "https://", imageShape: "landscape" },
+      { type: "image", image: "", url: "https://", imageShape: "square" },
+      {
+        type: "text",
+        title: "Available for weddings, portraits, and editorial bookings — worldwide.",
+        textFont: "urbanist",
+        textAlign: "center",
+        textSize: "sm",
+      },
       { type: "link", title: "Book a session", url: "https://" },
       { type: "contact", email: "", phone: "" },
     ],
@@ -185,16 +275,26 @@ export const TEMPLATES: Template[] = [
   {
     id: "coach",
     name: "Coach",
-    description: "Lead with your program, then a booking link and socials for accountability.",
+    description: "A bold program banner with an uppercase display heading, booking, and socials.",
     theme: "wildfire",
     blocks: [
       {
-        type: "banner",
+        type: "header",
         title: "New 8-week program",
-        subtitle: "Enrollment open now",
+        headingFont: "archivo-black",
+        headingSize: "sm",
+        headingUseGradient: true,
+        headingGradientFrom: "#fca5a5",
+        headingGradientTo: "#fdba74",
+      },
+      {
+        type: "banner",
+        title: "Enrollment is open now",
+        subtitle: "Limited spots this cycle",
         url: "https://",
         bannerStyle: "coral",
         bannerPattern: "chevron",
+        tall: true,
       },
       { type: "link", title: "Book a free consult", url: "https://" },
       { type: "link", title: "Join the program", url: "https://" },
@@ -211,12 +311,27 @@ export const TEMPLATES: Template[] = [
   {
     id: "community",
     name: "Community",
-    description: "Mission-first layout with a donate link, volunteer signup, and contact.",
+    description:
+      "A mission-first layout with a statement, donate link, volunteer signup, and contact.",
     theme: "sage",
     blocks: [
-      { type: "header", title: "Our mission" },
+      {
+        type: "header",
+        title: "Our mission",
+        headingFont: "plus-jakarta",
+        headingSize: "sm",
+        headingColor: "#15803d",
+      },
+      {
+        type: "text",
+        title:
+          "We're neighbors showing up for neighbors — every donation and every hour goes straight back into this block.",
+        textFont: "plus-jakarta",
+        textAlign: "center",
+      },
       { type: "link", title: "Donate now", url: "https://" },
       { type: "link", title: "Volunteer with us", url: "https://" },
+      { type: "link", title: "Upcoming events", url: "https://" },
       {
         type: "social",
         socials: [
@@ -231,12 +346,27 @@ export const TEMPLATES: Template[] = [
   {
     id: "writer",
     name: "Writer",
-    description: "Point readers to your latest piece, your newsletter, and where to follow.",
+    description: "An editorial serif heading, a pull-quote intro, and links to your latest issue.",
     theme: "cream",
     blocks: [
-      { type: "header", title: "Latest issue" },
-      { type: "link", title: "Read the newsletter", url: "https://" },
-      { type: "link", title: "Subscribe", url: "https://" },
+      {
+        type: "header",
+        title: "Latest issue",
+        headingFont: "cormorant",
+        headingSize: "lg",
+        headingUppercase: false,
+      },
+      {
+        type: "text",
+        title: "Essays on the small decisions that build a life — one letter, every other Sunday.",
+        textFont: "cormorant",
+        textItalic: true,
+        textAlign: "center",
+        textSize: "lg",
+      },
+      { type: "link", title: "Read the latest issue", url: "https://" },
+      { type: "link", title: "Subscribe for free", url: "https://" },
+      { type: "link", title: "Browse the archive", url: "https://" },
       {
         type: "social",
         socials: [

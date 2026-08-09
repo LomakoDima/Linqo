@@ -3,14 +3,24 @@ import { useLocation } from "@tanstack/react-router";
 import { AnimatedWordmark } from "@/components/AnimatedWordmark";
 
 const WORDMARK = "Linqo.";
+// Short on purpose — this is on screen for well under a second total, so it
+// has to read at a glance, not be parsed like a sentence.
+const SUBTITLE = "No code. Just you.";
 const ENTRANCE_DELAY = 150;
 const LETTER_STEP = 80;
 const ENTRANCE_DURATION = 650;
-const HOLD = 350;
+// Long enough to actually read the subtitle before the morph starts — the
+// previous 350ms hold gave it about 140ms fully visible, which is no time at
+// all for real text (a four-word line still needs room to register).
+const HOLD = 1000;
 const MORPH_DURATION = 650;
 const FADE_DURATION = 300;
 
 const TOTAL_ENTER = ENTRANCE_DELAY + (WORDMARK.length - 1) * LETTER_STEP + ENTRANCE_DURATION;
+// Starts once the last letter has settled, not a moment before — a subtitle
+// racing the wordmark's own entrance would just read as clutter.
+const SUBTITLE_DELAY = TOTAL_ENTER + 80;
+const SUBTITLE_DURATION = 350;
 
 type Stage = "enter" | "morph" | "fade" | "done";
 
@@ -98,19 +108,38 @@ export function LoadingScreen() {
         stage === "fade" ? "pointer-events-none opacity-0" : "opacity-100"
       }`}
     >
-      <div
-        ref={wordmarkRef}
-        style={{
-          ...MORPH_TRANSITION_STYLE,
-          ...(stage === "morph" || stage === "fade" ? morphTransform : null),
-        }}
-      >
-        <AnimatedWordmark
-          text={WORDMARK}
-          delay={ENTRANCE_DELAY}
-          letterDelay={LETTER_STEP}
-          className="text-6xl font-semibold tracking-tight sm:text-7xl lg:text-8xl"
-        />
+      <div className="flex flex-col items-center">
+        <div
+          ref={wordmarkRef}
+          style={{
+            ...MORPH_TRANSITION_STYLE,
+            ...(stage === "morph" || stage === "fade" ? morphTransform : null),
+          }}
+        >
+          <AnimatedWordmark
+            text={WORDMARK}
+            delay={ENTRANCE_DELAY}
+            letterDelay={LETTER_STEP}
+            className="text-6xl font-semibold tracking-tight sm:text-7xl lg:text-8xl"
+          />
+        </div>
+        <p
+          className={
+            stage === "enter"
+              ? "animate-splash-subtitle-in mt-4 text-center text-sm font-medium text-muted-foreground opacity-0 sm:text-base"
+              : "mt-4 text-center text-sm font-medium text-muted-foreground opacity-0 transition-opacity duration-200 ease-out sm:text-base"
+          }
+          style={
+            stage === "enter"
+              ? {
+                  animationDelay: `${SUBTITLE_DELAY}ms`,
+                  animationDuration: `${SUBTITLE_DURATION}ms`,
+                }
+              : undefined
+          }
+        >
+          {SUBTITLE}
+        </p>
       </div>
     </div>
   );
