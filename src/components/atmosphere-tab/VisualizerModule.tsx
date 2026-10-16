@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { SegmentedToggle, ColorField } from "@/components/BlockEditor";
 import { AudioVisualizer } from "@/components/AudioVisualizer";
 import { SectionCard } from "@/components/ui/section-card";
@@ -35,6 +36,13 @@ export function VisualizerModule({
   updateMusic: (patch: Partial<MusicSettings>) => void;
 }) {
   const enabled = music?.enabled ?? false;
+  // Explicit override wins either direction; unset defaults to whatever
+  // Background Music already is — so a profile saved before this toggle
+  // existed renders exactly as before (visualizer on while music plays,
+  // off otherwise), and the switch below is what now lets a visitor flip
+  // either half of that independently: force it on with music off, or
+  // force it off while music keeps playing.
+  const visualizerOn = music?.visualizerEnabled ?? enabled;
   const previewAnalyser = useRef<AnalyserNode | null>(null);
   const style = music?.visualizer && music.visualizer !== "off" ? music.visualizer : "bars";
 
@@ -43,13 +51,30 @@ export function VisualizerModule({
       icon={AudioLines}
       title="Visualizer"
       description="The now-playing pill's style, size, and color."
-      deemphasized={!enabled}
-      deemphasizedHint={!enabled ? "Turn on Background Music to preview this live." : undefined}
+      deemphasized={!visualizerOn}
+      deemphasizedHint={
+        !visualizerOn ? "Turn on the switch above to show the visualizer." : undefined
+      }
+      headerAccessory={
+        <div className="flex items-center gap-2">
+          <Label
+            htmlFor="visualizer-toggle"
+            className="cursor-pointer text-xs font-normal text-muted-foreground"
+          >
+            Show visualizer
+          </Label>
+          <Switch
+            id="visualizer-toggle"
+            checked={visualizerOn}
+            onCheckedChange={(checked) => updateMusic({ visualizerEnabled: checked })}
+          />
+        </div>
+      }
     >
       <div className="flex items-center justify-center rounded-xl border border-border bg-card/60 p-8">
         <AudioVisualizer
           analyserRef={previewAnalyser}
-          playing={enabled}
+          playing={visualizerOn}
           style={style}
           size={music?.visualizerSize ?? "md"}
           color={music?.visualizerColor || "currentColor"}

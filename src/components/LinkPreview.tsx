@@ -824,6 +824,10 @@ export function LinkPreview({ profile, framed = false }: { profile: Profile; fra
   const hasAmbient = !!(
     profile.ambient?.enabled && (profile.ambient.layers ?? []).some((l) => l.enabled && l.url)
   );
+  // Independent of both — see MusicSettings.visualizerEnabled. Only takes
+  // over the corner when neither of the widgets above already has a real
+  // control (play/pause, mute) to put there.
+  const visualizerOnly = !hasMusic && !hasAmbient && !!profile.music?.visualizerEnabled;
 
   // Rendered as a sibling of the scrolling content (not inside it) so it
   // stays pinned in view rather than scrolling away with the page. The
@@ -840,6 +844,8 @@ export function LinkPreview({ profile, framed = false }: { profile: Profile; fra
     />
   ) : hasAmbient ? (
     <AmbientOnlyWidget slug={profile.slug} framed={framed} ambientBedRef={ambientBedRef} />
+  ) : visualizerOnly ? (
+    <VisualizerOnlyWidget music={profile.music!} framed={framed} />
   ) : null;
 
   if (!framed)
@@ -852,7 +858,7 @@ export function LinkPreview({ profile, framed = false }: { profile: Profile; fra
     );
 
   return (
-    <div className="sticky top-8 mx-auto w-[320px]">
+    <div className="sticky top-20 mx-auto w-[320px]">
       <div className="relative rounded-[2.5rem] border-[10px] border-neutral-900 bg-neutral-900 shadow-2xl">
         <div className="absolute left-1/2 top-2 z-10 h-5 w-24 -translate-x-1/2 rounded-full bg-neutral-900" />
         <div className="h-[640px] overflow-y-auto rounded-[2rem]">{content}</div>
@@ -1083,6 +1089,14 @@ function NowPlayingWidget({
   const genre = MUSIC_GENRES[music.genre ?? "lofi"] ?? MUSIC_GENRES.lofi;
   const visualizer = music.visualizer ?? "bars";
   const position = music.visualizerPosition ?? "right";
+  // Unset defaults to on — this widget only ever renders once music is
+  // already playing (see `hasMusic`), so that matches its original,
+  // always-visualizer behavior for profiles saved before this toggle
+  // existed. Explicitly off drops the tap-to-pause button entirely rather
+  // than swapping in a substitute icon — playback then relies solely on
+  // the opt-in autoplay below, same as a page with no visualizer at all
+  // used to work before this widget existed.
+  const showVisualizer = music.visualizerEnabled ?? true;
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = (music.volume ?? 70) / 100;
@@ -1139,29 +1153,32 @@ function NowPlayingWidget({
         onPause={() => updatePlaying(false)}
         onEnded={() => updatePlaying(false)}
       />
-      <button
-        type="button"
-        onClick={toggle}
-        className="grid cursor-pointer place-items-center rounded-full p-2 transition-transform duration-300 hover:scale-110 active:scale-95"
-        style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.45))" }}
-        aria-label={playing ? "Pause background music" : "Play background music"}
-      >
-        <AudioVisualizer
-          analyserRef={analyserRef}
-          playing={playing}
-          // "off" only exists as a leftover value from before the widget
-          // was visualizer-only — there's no icon/label to fall back to
-          // anymore, so it now just means "use the default style".
-          style={visualizer === "off" ? "bars" : visualizer}
-          size={music.visualizerSize ?? "md"}
-          color={
-            music.visualizerColor || (genre.light ? "rgba(23,23,23,0.9)" : "rgba(255,255,255,0.95)")
-          }
-          opacity={music.visualizerOpacity}
-          roundness={music.visualizerRoundness}
-          speed={music.visualizerSpeed}
-        />
-      </button>
+      {showVisualizer && (
+        <button
+          type="button"
+          onClick={toggle}
+          className="grid cursor-pointer place-items-center rounded-full p-2 transition-transform duration-300 hover:scale-110 active:scale-95"
+          style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.45))" }}
+          aria-label={playing ? "Pause background music" : "Play background music"}
+        >
+          <AudioVisualizer
+            analyserRef={analyserRef}
+            playing={playing}
+            // "off" only exists as a leftover value from before the widget
+            // was visualizer-only — there's no icon/label to fall back to
+            // anymore, so it now just means "use the default style".
+            style={visualizer === "off" ? "bars" : visualizer}
+            size={music.visualizerSize ?? "md"}
+            color={
+              music.visualizerColor ||
+              (genre.light ? "rgba(23,23,23,0.9)" : "rgba(255,255,255,0.95)")
+            }
+            opacity={music.visualizerOpacity}
+            roundness={music.visualizerRoundness}
+            speed={music.visualizerSpeed}
+          />
+        </button>
+      )}
     </div>
   );
 }
@@ -1209,6 +1226,37 @@ function AmbientOnlyWidget({
       >
         {playing ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
       </button>
+    </div>
+  );
+}
+
+// The visualizer, on its own, for a page with Background Music off but
+// MusicSettings.visualizerEnabled on — no track, no play/pause, just
+// AudioVisualizer's own idle/decorative motion (an always-empty analyser
+// ref never has real data to draw, so it never leaves that fallback). Only
+// rendered when neither NowPlayingWidget nor AmbientOnlyWidget already
+// occupies this corner with a real, functional control.
+function VisualizerOnlyWidget({ music, framed }: { music: MusicSettings; framed: boolean }) {
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const visualizer = music.visualizer ?? "bars";
+  const position = music.visualizerPosition ?? "right";
+
+  return (
+    <div
+      aria-hidden
+      className={`pointer-events-none ${framed ? "absolute" : "fixed"} bottom-4 z-20 ${WIDGET_POSITION_CLASS[position]}`}
+      style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.45))" }}
+    >
+      <AudioVisualizer
+        analyserRef={analyserRef}
+        playing
+        style={visualizer === "off" ? "bars" : visualizer}
+        size={music.visualizerSize ?? "md"}
+        color={music.visualizerColor || "rgba(255,255,255,0.95)"}
+        opacity={music.visualizerOpacity}
+        roundness={music.visualizerRoundness}
+        speed={music.visualizerSpeed}
+      />
     </div>
   );
 }

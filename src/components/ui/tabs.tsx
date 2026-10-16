@@ -44,8 +44,8 @@ const TabsList = React.forwardRef<
     };
     indicator.style.left = `${rect.left}px`;
     indicator.style.width = `${rect.width}px`;
-    indicator.style.height = `${rect.height}px`;
-    return rect;
+    indicator.style.height = `2px`;
+    return { ...rect, height: 2 };
   }, []);
 
   React.useLayoutEffect(() => {
@@ -102,7 +102,7 @@ const TabsList = React.forwardRef<
     <TabsPrimitive.List
       ref={mergeRefs(ref, listRef)}
       className={cn(
-        "relative inline-flex h-11 items-center justify-center rounded-xl bg-muted/60 backdrop-blur-sm p-1 text-muted-foreground border border-muted/50",
+        "relative flex h-11 w-full items-center justify-start gap-1 overflow-x-auto border-b border-border text-muted-foreground [scrollbar-width:none]",
         className,
       )}
       {...props}
@@ -110,7 +110,7 @@ const TabsList = React.forwardRef<
       <span
         ref={indicatorRef}
         aria-hidden
-        className="pointer-events-none absolute top-1/2 -translate-y-1/2 rounded-lg bg-background shadow-sm"
+        className="pointer-events-none absolute bottom-0 rounded-full bg-foreground"
       />
       {children}
     </TabsPrimitive.List>
@@ -125,7 +125,7 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "relative z-10 inline-flex animate-tab-enter items-center justify-center whitespace-nowrap rounded-lg px-4 py-1.5 text-sm font-medium cursor-pointer transition-colors duration-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/10 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed data-[state=active]:text-foreground data-[state=active]:font-semibold hover:text-foreground/80",
+      "relative z-10 inline-flex h-11 shrink-0 animate-tab-enter items-center justify-center whitespace-nowrap rounded-t-ui px-3.5 text-sm font-medium cursor-pointer transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed data-[state=active]:text-foreground hover:text-foreground",
       className,
     )}
     {...props}

@@ -120,7 +120,7 @@ export function LoadingScreen() {
             text={WORDMARK}
             delay={ENTRANCE_DELAY}
             letterDelay={LETTER_STEP}
-            className="text-6xl font-semibold tracking-tight sm:text-7xl lg:text-8xl"
+            className="font-display text-6xl font-semibold sm:text-7xl lg:text-8xl"
           />
         </div>
         <p

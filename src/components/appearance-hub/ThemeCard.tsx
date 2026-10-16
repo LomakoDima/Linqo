@@ -1,84 +1,88 @@
-import { motion } from "motion/react";
-import { Star, Check } from "lucide-react";
+import { Check, Star } from "lucide-react";
 import { THEMES, type ThemeName } from "@/lib/link-store";
 import { THEME_META } from "@/lib/theme-meta";
-import { blockSpring, libraryCardHover, libraryCardTap } from "@/lib/block-motion/variants";
 
-// The entire card is the selection target — clicking anywhere but the star
-// applies the theme immediately, no separate preview-then-confirm step.
+// A miniature of what the theme actually does to a page — its own background,
+// text colour, card surface and accent — drawn with the same class strings
+// the renderer uses, so a tile can't disagree with the real result.
+//
+// Two sibling buttons (select / favorite) rather than nested interactive
+// elements; the tile's accessible name carries the theme and its state.
 export function ThemeCard({
   name,
   active,
   favorite,
   onSelect,
   onToggleFavorite,
+  onHoverChange,
 }: {
   name: ThemeName;
   active: boolean;
   favorite: boolean;
   onSelect: () => void;
   onToggleFavorite: () => void;
+  onHoverChange: (hovering: boolean) => void;
 }) {
   const theme = THEMES[name];
   const meta = THEME_META[name];
 
   return (
-    <motion.div
-      role="button"
-      tabIndex={0}
-      onClick={onSelect}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onSelect();
-        }
-      }}
-      whileHover={libraryCardHover}
-      whileTap={libraryCardTap}
-      className={`group relative cursor-pointer overflow-hidden rounded-2xl border-2 text-left transition-colors duration-200 ${
-        active ? "border-primary shadow-md" : "border-transparent hover:border-muted-foreground/30"
-      }`}
+    <div
+      className="group relative min-w-0"
+      onMouseEnter={() => onHoverChange(true)}
+      onMouseLeave={() => onHoverChange(false)}
+      onFocus={() => onHoverChange(true)}
+      onBlur={() => onHoverChange(false)}
     >
-      <div className={`relative h-20 w-full p-3 ${theme.bg}`}>
-        <div className="mb-2 h-2 w-8 rounded bg-white/50" />
-        <div className={`h-3.5 rounded ${theme.card}`} />
-        <div className={`mt-1.5 h-3.5 w-2/3 rounded ${theme.card}`} />
-
-        {active && (
-          <motion.span
-            initial={{ scale: 0.5, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={blockSpring}
-            className="absolute right-2 top-2 grid h-5 w-5 place-items-center rounded-full bg-primary text-primary-foreground shadow"
-          >
-            <Check className="h-3 w-3" />
-          </motion.span>
-        )}
-
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleFavorite();
-          }}
-          aria-label={favorite ? "Remove from favorites" : "Add to favorites"}
-          className={`absolute left-2 top-2 grid h-6 w-6 cursor-pointer place-items-center rounded-full bg-black/30 backdrop-blur-sm transition-opacity duration-200 ${
-            favorite ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-          }`}
-        >
-          <Star
-            className={`h-3.5 w-3.5 ${favorite ? "fill-amber-400 text-amber-400" : "text-white"}`}
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-pressed={active}
+        aria-label={`${theme.label} — ${meta.tagline}${active ? " (current theme)" : ""}`}
+        className={`block w-full cursor-pointer overflow-hidden rounded-lg border text-left transition-[border-color,box-shadow] duration-150 ${
+          active
+            ? "border-foreground shadow-[0_0_0_1px_var(--foreground)]"
+            : "border-border hover:border-foreground/50"
+        }`}
+      >
+        <span className={`relative block h-24 p-3 ${theme.bg}`}>
+          <span className="flex items-center gap-2" aria-hidden>
+            <span className="h-5 w-5 rounded-full bg-current opacity-30" />
+            <span className="space-y-1">
+              <span className="block h-1.5 w-14 rounded-full bg-current opacity-80" />
+              <span className="block h-1.5 w-9 rounded-full bg-current opacity-40" />
+            </span>
+          </span>
+          <span aria-hidden className={`mt-3 block h-6 rounded-md ${theme.card}`} />
+          <span
+            aria-hidden
+            className={`absolute bottom-3.5 right-3.5 h-2 w-2 rounded-full bg-current ${theme.accent}`}
           />
-        </button>
-      </div>
+        </span>
+        <span className="block bg-card px-3 py-2.5">
+          <span className="flex items-center justify-between gap-2">
+            <span className="truncate text-sm font-medium">{theme.label}</span>
+            {active && <Check className="h-3.5 w-3.5 shrink-0" aria-hidden />}
+          </span>
+          <span className="eyebrow mt-1.5 block truncate">{meta.tagline}</span>
+        </span>
+      </button>
 
-      <div className="bg-card px-3 py-2.5">
-        <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-          <span>{meta.emoji}</span>
-          <span className="truncate">{theme.label}</span>
-        </div>
-        <p className="mt-0.5 truncate text-xs text-muted-foreground">{meta.tagline}</p>
-      </div>
-    </motion.div>
+      <button
+        type="button"
+        onClick={onToggleFavorite}
+        aria-label={
+          favorite ? `Remove ${theme.label} from favorites` : `Add ${theme.label} to favorites`
+        }
+        aria-pressed={favorite}
+        className={`absolute right-2 top-2 grid h-7 w-7 cursor-pointer place-items-center rounded-ui border border-border bg-background transition-opacity duration-150 focus-visible:opacity-100 group-hover:opacity-100 ${
+          favorite ? "opacity-100" : "opacity-0"
+        }`}
+      >
+        <Star
+          className={`h-3.5 w-3.5 ${favorite ? "fill-brand text-brand" : "text-muted-foreground"}`}
+        />
+      </button>
+    </div>
   );
 }

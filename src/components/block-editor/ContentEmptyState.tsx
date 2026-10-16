@@ -3,7 +3,7 @@ import { Plus, Sparkles } from "lucide-react";
 
 export function ContentEmptyState({ onAddBlock }: { onAddBlock: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border py-16 text-center">
+    <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border py-16 text-center">
       <div className="grid h-12 w-12 place-items-center rounded-full bg-accent/60">
         <Sparkles className="h-5 w-5 text-accent-foreground" />
       </div>

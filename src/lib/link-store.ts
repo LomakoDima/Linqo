@@ -412,6 +412,16 @@ export interface MusicSettings {
   url?: string;
   loop?: boolean;
   volume?: number;
+  // Whether the visualizer widget shows on the public page — independent
+  // of Background Music's own on/off switch. Undefined defaults to
+  // whatever Background Music already is (see NowPlayingWidget /
+  // VisualizerOnlyWidget in LinkPreview.tsx), so a profile saved before
+  // this toggle existed renders exactly as before: visualizer on while
+  // music plays, off otherwise. An explicit value overrides that in
+  // either direction — true shows a purely decorative, idle-animated
+  // visualizer even with music off; false hides it (falling back to a
+  // plain play/pause glyph) even while music plays.
+  visualizerEnabled?: boolean;
   visualizer?: MusicVisualizerStyle;
   visualizerSize?: MusicVisualizerSize;
   visualizerPosition?: MusicVisualizerPosition;

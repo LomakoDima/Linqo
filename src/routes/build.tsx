@@ -19,7 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Eye, Copy, Rocket, LayoutTemplate, HelpCircle, Music2, Loader2 } from "lucide-react";
+import { Plus, Eye, Copy, HelpCircle, Music2, Loader2, Smartphone } from "lucide-react";
 import {
   THEMES,
   MUSIC_GENRES,
@@ -40,7 +40,8 @@ import {
 import { BLOCK_REGISTRY } from "@/lib/block-registry/registry";
 import { createBlockFromEntry, duplicateBlock } from "@/lib/block-registry/block-factory";
 import { useBlockDragDrop } from "@/lib/block-dnd/useBlockDragDrop";
-import { TEMPLATES, instantiateTemplate, type Template } from "@/lib/templates";
+import { instantiateTemplate, type Template } from "@/lib/templates";
+import { TemplatesHub } from "@/components/templates-hub/TemplatesHub";
 import { fileToResizedDataUrl } from "@/lib/image";
 import { copyToClipboard } from "@/lib/clipboard";
 import { LinkPreview } from "@/components/LinkPreview";
@@ -66,7 +67,8 @@ import { ProfileHub } from "@/components/profile-hub/ProfileHub";
 import { AppearanceHub } from "@/components/appearance-hub/AppearanceHub";
 import { publishProfile, uploadMusicTrack, getMyProfile } from "@/lib/publish";
 import { GuideTour, type TourStep } from "@/components/GuideTour";
-import { AnimatedWordmark } from "@/components/AnimatedWordmark";
+import { BrandMark } from "@/components/brand/BrandMark";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/lib/auth-context";
 import { UserMenu } from "@/components/UserMenu";
@@ -326,10 +328,17 @@ function BuilderPage() {
     });
   };
 
+  const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
   const [pendingTemplate, setPendingTemplate] = useState<Template | null>(null);
+  // Set while a template or theme tile is hovered/focused, or the template
+  // preview modal is open — swaps what the phone shows without touching the
+  // real `profile` state, so browsing is "try before you use", not a
+  // committed change. Shared by Templates and Appearance.
+  const [previewOverride, setPreviewOverride] = useState<Profile | null>(null);
 
   const doApplyTemplate = (t: Template) => {
-    setProfile((p) => ({ ...p, theme: t.theme, blocks: instantiateTemplate(t) }));
+    setProfile((p) => ({ ...p, theme: t.theme, blocks: instantiateTemplate(t), templateId: t.id }));
+    setPreviewOverride(null);
     toast.success(`Applied "${t.name}" template`);
   };
 
@@ -340,6 +349,13 @@ function BuilderPage() {
       doApplyTemplate(t);
     }
   };
+
+  // Leaving the Templates tab always drops any hover/preview override — the
+  // phone should only ever diverge from `profile` while the visitor is
+  // actually browsing templates.
+  useEffect(() => {
+    if (activeTab !== "templates" && activeTab !== "design") setPreviewOverride(null);
+  }, [activeTab]);
 
   const updateBlock = (b: LinkBlock) =>
     setProfile((p) => ({ ...p, blocks: p.blocks.map((x) => (x.id === b.id ? b : x)) }));
@@ -483,23 +499,13 @@ function BuilderPage() {
   return (
     <MotionConfig reducedMotion="user">
       <div className="min-h-screen bg-background">
-        <header className="sticky top-0 z-40 border-b border-border/40 bg-background/70 backdrop-blur-xl transition-all duration-300 shadow-xs">
-          <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
-            <Link to="/" data-tour="brand" className="flex items-center gap-2.5">
-              <div className="grid h-8.5 w-8.5 place-items-center rounded-xl bg-primary text-primary-foreground shadow-md shadow-primary/20">
-                <Rocket className="h-4 w-4" />
-              </div>
-              <AnimatedWordmark
-                id="header-wordmark-target"
-                text="Linqo."
-                delay={120}
-                className="text-xl font-bold tracking-tight"
-              />
-              <span className="ml-2 hidden text-xs font-medium text-muted-foreground sm:inline border-l border-border/60 pl-3">
-                Build your personal page, without code.
-              </span>
-            </Link>
-            <div className="flex items-center gap-2.5">
+        <header className="sticky top-0 z-40 border-b border-border bg-background/95">
+          <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-2 px-4 sm:px-6">
+            <div data-tour="brand" className="flex items-center gap-3">
+              <BrandMark id="header-wordmark-target" />
+              <span className="eyebrow hidden border-l border-border pl-3 lg:inline">Builder</span>
+            </div>
+            <div className="flex items-center gap-1.5">
               <span data-tour="theme-toggle">
                 <ThemeToggle />
               </span>
@@ -507,10 +513,11 @@ function BuilderPage() {
                 variant="ghost"
                 size="icon"
                 title="Take the tour"
+                aria-label="Take the tour"
                 onClick={() => setTourActive(true)}
-                className="rounded-full hover:bg-accent/60"
+                className="hidden sm:inline-flex"
               >
-                <HelpCircle className="h-4 w-4" />
+                <HelpCircle />
               </Button>
               <UserMenu
                 user={user}
@@ -522,31 +529,31 @@ function BuilderPage() {
                   void signOut();
                 }}
               />
-              <div data-tour="share-buttons" className="flex items-center gap-2">
+              <div data-tour="share-buttons" className="ml-1 flex items-center gap-1.5">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={copyShortLink}
                   disabled={publishing}
-                  className="rounded-full border-border/80 bg-background/50 backdrop-blur-md hover:bg-accent/60"
+                  aria-label="Publish and copy link"
                 >
-                  <Copy className="mr-1.5 h-3.5 w-3.5" /> {publishing ? "Publishing…" : "Copy"}
+                  <Copy />{" "}
+                  <span className="hidden sm:inline">
+                    {publishing ? "Publishing…" : "Copy link"}
+                  </span>
                 </Button>
-                <a href={sharePath} target="_blank" rel="noreferrer">
-                  <Button
-                    size="sm"
-                    className="rounded-full font-medium shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
-                  >
-                    <Eye className="mr-1.5 h-3.5 w-3.5" /> Open
-                  </Button>
-                </a>
+                <Button asChild size="sm">
+                  <a href={sharePath} target="_blank" rel="noreferrer" aria-label="Open your page">
+                    <Eye /> <span className="hidden sm:inline">Open</span>
+                  </a>
+                </Button>
               </div>
             </div>
           </div>
         </header>
 
-        <div className="mx-auto grid max-w-7xl gap-8 px-6 py-8 lg:grid-cols-[1fr_380px]">
-          <div>
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 pb-28 pt-6 sm:px-6 sm:pt-8 lg:grid-cols-[1fr_380px] lg:pb-10">
+          <div className="min-w-0">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList>
                 <TabsTrigger value="templates" data-tour="tab-templates">
@@ -569,15 +576,13 @@ function BuilderPage() {
                 </TabsTrigger>
               </TabsList>
 
-              <TabsContent value="templates" className="mt-6 space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Start from a layout and theme, then customize it in Content and Design.
-                </p>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {TEMPLATES.map((t) => (
-                    <TemplateCard key={t.id} template={t} onUse={() => requestApplyTemplate(t)} />
-                  ))}
-                </div>
+              <TabsContent value="templates" className="mt-6">
+                <TemplatesHub
+                  profile={profile}
+                  activeTemplateId={profile.templateId}
+                  onUseTemplate={requestApplyTemplate}
+                  onPreviewTemplate={setPreviewOverride}
+                />
               </TabsContent>
 
               <TabsContent value="content" className="mt-6 space-y-4">
@@ -648,6 +653,7 @@ function BuilderPage() {
                   update={update}
                   onUploadBgImage={handleBgImageFile}
                   setActiveTab={setActiveTab}
+                  onPreviewProfile={setPreviewOverride}
                 />
               </TabsContent>
 
@@ -795,15 +801,33 @@ function BuilderPage() {
           </div>
 
           <aside data-tour="preview" className="hidden lg:block">
-            <LinkPreview profile={profile} framed />
+            <LinkPreview profile={previewOverride ?? profile} framed />
           </aside>
         </div>
 
-        <div className="fixed bottom-6 right-6 lg:hidden">
-          <Button size="lg" onClick={() => insertBlock("link")}>
-            <Plus className="mr-2 h-4 w-4" /> Block
+        {/* Below lg the phone column is hidden, so the preview lives behind
+            this bar. It also surfaces the one quick-add the old floating
+            button offered, but only where it makes sense (Content). */}
+        <div className="fixed inset-x-0 bottom-0 z-30 flex gap-2 border-t border-border bg-background/95 p-3 lg:hidden">
+          {activeTab === "content" && (
+            <Button variant="outline" className="flex-1" onClick={() => insertBlock("link")}>
+              <Plus /> Add link
+            </Button>
+          )}
+          <Button className="flex-1" onClick={() => setMobilePreviewOpen(true)}>
+            <Smartphone /> Preview page
           </Button>
         </div>
+
+        <Dialog open={mobilePreviewOpen} onOpenChange={setMobilePreviewOpen}>
+          <DialogContent className="max-h-[96dvh] w-[calc(100vw-1rem)] max-w-sm overflow-y-auto p-3 sm:max-w-sm">
+            <DialogTitle className="sr-only">Page preview</DialogTitle>
+            <DialogDescription className="sr-only">
+              How your page looks right now, updating as you edit.
+            </DialogDescription>
+            <LinkPreview profile={previewOverride ?? profile} framed />
+          </DialogContent>
+        </Dialog>
 
         <AlertDialog
           open={pendingTemplate !== null}
@@ -850,39 +874,6 @@ function BuilderPage() {
         />
       </div>
     </MotionConfig>
-  );
-}
-
-function TemplateCard({ template, onUse }: { template: Template; onUse: () => void }) {
-  const previewProfile: Profile = {
-    slug: "you",
-    name: "Your name",
-    bio: "",
-    avatar: "",
-    cover: "",
-    theme: template.theme,
-    blocks: instantiateTemplate(template),
-  };
-  return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card/60 backdrop-blur-sm transition-all duration-200 hover:shadow-md">
-      <div className="relative h-56 overflow-hidden bg-muted">
-        <div className="absolute left-1/2 top-0 w-[320px] origin-top -translate-x-1/2 scale-[0.6]">
-          <LinkPreview profile={previewProfile} />
-        </div>
-      </div>
-      <div className="flex items-center justify-between gap-3 p-4">
-        <div>
-          <div className="flex items-center gap-1.5 font-medium">
-            <LayoutTemplate className="h-4 w-4 text-muted-foreground" />
-            {template.name}
-          </div>
-          <p className="mt-0.5 text-xs text-muted-foreground">{template.description}</p>
-        </div>
-        <Button size="sm" className="shrink-0" onClick={onUse}>
-          Use
-        </Button>
-      </div>
-    </div>
   );
 }
 

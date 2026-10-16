@@ -1,102 +1,119 @@
-import { useRef } from "react";
+import { useState } from "react";
 import type { Profile } from "@/lib/link-store";
-import { AppearanceSidebar, type AppearanceSection } from "./AppearanceSidebar";
-import { CustomizationCard } from "./CustomizationCard";
+import { THEMES } from "@/lib/link-store";
+import { ColorField } from "@/components/BlockEditor";
+import { Button } from "@/components/ui/button";
 import { ThemeLibrary } from "./ThemeLibrary";
 import { BackgroundSelector } from "./BackgroundSelector";
 import { EffectsPanel } from "./EffectsPanel";
-import { ComingSoonCard } from "./ComingSoonCard";
-import { Type, Sliders } from "lucide-react";
 
-const SECTIONS: AppearanceSection[] = [
-  { id: "appearance", label: "Appearance" },
-  { id: "theme-library", label: "Theme Library" },
-  { id: "background", label: "Background" },
-  { id: "effects", label: "Effects" },
-  { id: "typography", label: "Typography" },
-  { id: "advanced", label: "Advanced" },
+// Appearance is three distinct jobs, in the order you do them: pick a whole
+// theme, adjust its colour and backdrop, then add effects. Splitting them
+// into panels (rather than one long stack of collapsible cards) keeps each
+// job's controls next to the phone preview instead of a scroll away.
+type Panel = "theme" | "colour" | "effects";
+
+const PANELS: { id: Panel; label: string; hint: string }[] = [
+  { id: "theme", label: "Theme", hint: "A complete look" },
+  { id: "colour", label: "Colour & background", hint: "Accent and backdrop" },
+  { id: "effects", label: "Effects", hint: "Glass, glow, grain" },
 ];
 
-// The Theme Studio — orchestrates the Appearance tab's stack of cards, plus
-// the sticky chip-nav that jump-scrolls between them. Everything here
-// writes through the same `update` shallow-merge setter every other
-// builder tab already uses.
 export function AppearanceHub({
   profile,
   update,
   onUploadBgImage,
   setActiveTab,
+  onPreviewProfile,
 }: {
   profile: Profile;
   update: (patch: Partial<Profile>) => void;
   onUploadBgImage: (file: File) => void | Promise<void>;
   setActiveTab: (tab: string) => void;
+  onPreviewProfile: (p: Profile | null) => void;
 }) {
-  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
-
-  const scrollToSection = (id: string) => {
-    sectionRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
+  const [panel, setPanel] = useState<Panel>("theme");
+  const theme = THEMES[profile.theme];
 
   return (
-    <div className="space-y-4">
-      <AppearanceSidebar sections={SECTIONS} onSelect={scrollToSection} />
-
-      <div
-        ref={(el) => {
-          sectionRefs.current.appearance = el;
-        }}
-      >
-        <CustomizationCard profile={profile} update={update} />
+    <div className="space-y-6">
+      <div className="max-w-xl">
+        <p className="eyebrow">Appearance</p>
+        <h2 className="font-display mt-3 text-3xl font-medium leading-tight sm:text-4xl">
+          How your page looks.
+        </h2>
+        <p className="mt-3 text-muted-foreground">
+          Current theme: <span className="font-medium text-foreground">{theme.label}</span>. Changes
+          show in the preview straight away and save in this browser; Publish to update your live
+          page.
+        </p>
       </div>
 
       <div
-        ref={(el) => {
-          sectionRefs.current["theme-library"] = el;
-        }}
+        role="group"
+        aria-label="Appearance sections"
+        className="grid grid-cols-3 border-y border-border"
       >
-        <ThemeLibrary profile={profile} update={update} />
+        {PANELS.map((p) => {
+          const active = panel === p.id;
+          return (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => setPanel(p.id)}
+              aria-pressed={active}
+              className={`-mb-px cursor-pointer border-b-2 px-1 py-3 text-left transition-colors duration-150 sm:px-3 ${
+                active
+                  ? "border-foreground text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <span className="block text-sm font-medium">{p.label}</span>
+              <span className="eyebrow mt-1.5 hidden normal-case tracking-normal sm:block">
+                {p.hint}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
-      <div
-        ref={(el) => {
-          sectionRefs.current.background = el;
-        }}
-      >
-        <BackgroundSelector profile={profile} update={update} onUpload={onUploadBgImage} />
-      </div>
+      {panel === "theme" && (
+        <ThemeLibrary profile={profile} update={update} onPreviewProfile={onPreviewProfile} />
+      )}
 
-      <div
-        ref={(el) => {
-          sectionRefs.current.effects = el;
-        }}
-      >
+      {panel === "colour" && (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-border bg-card p-4">
+            <ColorField
+              label="Accent colour"
+              value={profile.accentColor}
+              onChange={(v) => update({ accentColor: v })}
+              fallback={theme.accentHex}
+            />
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <p className="text-xs text-muted-foreground">
+                Used for highlights, glow and animated effects. Defaults to the theme&rsquo;s own
+                accent.
+              </p>
+              {profile.accentColor && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => update({ accentColor: undefined })}
+                  className="shrink-0"
+                >
+                  Reset
+                </Button>
+              )}
+            </div>
+          </div>
+          <BackgroundSelector profile={profile} update={update} onUpload={onUploadBgImage} />
+        </div>
+      )}
+
+      {panel === "effects" && (
         <EffectsPanel profile={profile} update={update} setActiveTab={setActiveTab} />
-      </div>
-
-      <div
-        ref={(el) => {
-          sectionRefs.current.typography = el;
-        }}
-      >
-        <ComingSoonCard
-          icon={Type}
-          title="Typography"
-          description="Custom fonts and text styles for your whole page."
-        />
-      </div>
-
-      <div
-        ref={(el) => {
-          sectionRefs.current.advanced = el;
-        }}
-      >
-        <ComingSoonCard
-          icon={Sliders}
-          title="Advanced"
-          description="Custom CSS and fine-grained layout controls."
-        />
-      </div>
+      )}
     </div>
   );
 }

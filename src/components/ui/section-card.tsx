@@ -35,24 +35,21 @@ export function SectionCard({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <motion.div
-      whileHover={deemphasized ? undefined : { y: -2 }}
-      transition={blockSpring}
-      className={`overflow-hidden rounded-2xl border border-border bg-card/60 backdrop-blur-sm shadow-sm transition-all duration-200 ${
-        deemphasized ? "opacity-70" : "hover:shadow-md"
+    <div
+      className={`overflow-hidden rounded-xl border border-border bg-card transition-opacity duration-150 ${
+        deemphasized ? "opacity-70" : ""
       }`}
     >
       <div className="flex w-full items-center gap-3 p-4">
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
           className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
         >
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent/70 text-accent-foreground">
-            <Icon className="h-5 w-5" />
-          </span>
+          <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
           <div className="min-w-0 flex-1">
-            <div className="font-semibold">{title}</div>
+            <div className="text-[0.9375rem] font-semibold tracking-tight">{title}</div>
             {description && (
               <p className="mt-0.5 truncate text-xs text-muted-foreground">{description}</p>
             )}
@@ -63,7 +60,8 @@ export function SectionCard({
           type="button"
           onClick={() => setOpen((o) => !o)}
           aria-label={open ? "Collapse" : "Expand"}
-          className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+          aria-expanded={open}
+          className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-ui text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <ChevronDown
             className={`h-4 w-4 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
@@ -82,7 +80,7 @@ export function SectionCard({
           >
             <div className="space-y-4 border-t border-border/60 p-4 pt-4">
               {deemphasized && deemphasizedHint && (
-                <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                <p className="rounded-ui bg-muted px-3 py-2 text-xs text-muted-foreground">
                   {deemphasizedHint}
                 </p>
               )}
@@ -91,6 +89,6 @@ export function SectionCard({
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
+    </div>
   );
 }

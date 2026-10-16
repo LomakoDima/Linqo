@@ -29,14 +29,12 @@ function EffectRow({
   return (
     <div className="rounded-xl border border-border/60 p-3.5">
       <div className="flex items-center gap-3">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-accent/70 text-accent-foreground">
-          <Icon className="h-4 w-4" />
-        </span>
+        <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
         <div className="min-w-0 flex-1">
           <div className="text-sm font-medium">{title}</div>
           <p className="truncate text-xs text-muted-foreground">{description}</p>
         </div>
-        <Switch checked={enabled} onCheckedChange={onToggle} />
+        <Switch checked={enabled} onCheckedChange={onToggle} aria-label={title} />
       </div>
       {intensity !== undefined && onIntensityChange && (
         <div className={`mt-3 pl-12 ${enabled ? "" : "pointer-events-none opacity-40"}`}>
@@ -122,21 +120,14 @@ export function EffectsPanel({
       />
 
       <div className="flex items-center gap-3 rounded-xl border border-border/60 p-3.5">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-accent/70 text-accent-foreground">
-          <Snowflake className="h-4 w-4" />
-        </span>
+        <Snowflake className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
         <div className="min-w-0 flex-1">
           <div className="text-sm font-medium">Particles</div>
           <p className="truncate text-xs text-muted-foreground">
             {particlesOn ? `${PARTICLE_KINDS[particleKind].label} — on` : "Off"}
           </p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => setActiveTab("atmosphere")}
-        >
+        <Button type="button" variant="outline" size="sm" onClick={() => setActiveTab("music")}>
           Edit in Atmosphere <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
         </Button>
       </div>

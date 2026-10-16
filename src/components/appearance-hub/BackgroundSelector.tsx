@@ -1,18 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
-import {
-  ImageIcon,
-  Palette,
-  Sparkles as GradientIcon,
-  Check,
-  UploadCloud,
-  X,
-  LayoutGrid,
-  Wand2,
-  Camera,
-} from "lucide-react";
+import { ImageIcon, Palette, Sparkles as GradientIcon, Check, UploadCloud, X } from "lucide-react";
 import { SectionCard } from "@/components/ui/section-card";
-import { Badge } from "@/components/ui/badge";
 import { BANNER_STYLES, type BannerStyle, type Profile } from "@/lib/link-store";
 
 const MOODY_KEYS = (Object.keys(BANNER_STYLES) as BannerStyle[]).filter(
@@ -34,12 +23,6 @@ const CARDS: { key: CardKind; label: string; icon: typeof ImageIcon }[] = [
   { key: "image", label: "Upload Image", icon: ImageIcon },
   { key: "solid", label: "Solid Color", icon: Palette },
   { key: "gradient", label: "Gradient", icon: GradientIcon },
-];
-
-const COMING_SOON = [
-  { label: "Gallery", icon: LayoutGrid },
-  { label: "AI Background", icon: Wand2 },
-  { label: "Unsplash", icon: Camera },
 ];
 
 // Mirrors profile-hub/CoverSelector.tsx exactly — same coverType/coverStyle
@@ -83,6 +66,7 @@ export function BackgroundSelector({
             key={key}
             type="button"
             onClick={() => selectCard(key)}
+            aria-pressed={active === key}
             className={`flex cursor-pointer flex-col items-center gap-1.5 rounded-xl border px-3 py-3.5 text-center transition-all duration-200 ${
               active === key
                 ? "border-primary bg-primary/5 shadow-sm"
@@ -127,24 +111,6 @@ export function BackgroundSelector({
           })}
         </div>
       )}
-
-      <div className="grid grid-cols-3 gap-2.5">
-        {COMING_SOON.map(({ label, icon: Icon }) => (
-          <div
-            key={label}
-            className="relative flex cursor-not-allowed flex-col items-center gap-1.5 rounded-xl border border-dashed border-border px-3 py-3.5 text-center opacity-60"
-          >
-            <Icon className="h-5 w-5 text-muted-foreground" />
-            <span className="text-xs font-medium text-muted-foreground">{label}</span>
-            <Badge
-              variant="secondary"
-              className="absolute -right-1.5 -top-1.5 px-1.5 py-0 text-[9px]"
-            >
-              Soon
-            </Badge>
-          </div>
-        ))}
-      </div>
     </SectionCard>
   );
 }
@@ -186,6 +152,15 @@ function BackgroundDropzone({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label={profile.bgImage ? "Replace background image" : "Upload a background image"}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          fileInputRef.current?.click();
+        }
+      }}
       className={`relative flex h-32 cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border-2 border-dashed transition-colors ${
         dragging ? "border-primary bg-primary/5" : "border-border"
       }`}

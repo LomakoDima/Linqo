@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "@/components/notifications";
-import { ArrowLeft, ArrowRight, Eye, EyeOff, Rocket } from "lucide-react";
+import { ArrowLeft, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
-import { AnimatedWordmark } from "@/components/AnimatedWordmark";
+import { AuthShell } from "@/components/auth/AuthShell";
 import { forgotPassword, verifyResetCode, resetPassword } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/reset-password")({
@@ -104,30 +104,14 @@ function ResetPasswordPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-background p-3 sm:p-6">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 [mask-image:radial-gradient(ellipse_at_center,black,transparent_80%)]"
-        style={{
-          backgroundImage: "radial-gradient(currentColor 1px, transparent 1px)",
-          backgroundSize: "24px 24px",
-          color: "var(--color-foreground)",
-          opacity: 0.05,
-        }}
-      />
-
-      <div className="relative z-10 w-full max-w-md animate-fade-in rounded-[28px] border border-border bg-card p-8 shadow-2xl sm:p-10">
-        <Link to="/" className="inline-flex w-fit items-center gap-2">
-          <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground">
-            <Rocket className="h-4 w-4" />
-          </div>
-          <AnimatedWordmark text="Linqo." className="text-lg font-semibold tracking-tight" />
-        </Link>
-
-        <div key={step} className="animate-swap-in mt-8">
+    <AuthShell>
+      <div className="w-full">
+        <div key={step} className="animate-swap-in">
           {step === "request" && (
             <>
-              <h1 className="text-2xl font-semibold tracking-tight">Reset your password</h1>
+              <h1 className="font-display text-3xl font-medium leading-tight">
+                Reset your password
+              </h1>
               <p className="mt-2 text-sm text-muted-foreground">
                 Enter your email and we&rsquo;ll send you a code.
               </p>
@@ -163,7 +147,7 @@ function ResetPasswordPage() {
                 <ArrowLeft className="h-3.5 w-3.5" />
                 Back
               </button>
-              <h1 className="text-2xl font-semibold tracking-tight">Enter the code</h1>
+              <h1 className="font-display text-3xl font-medium leading-tight">Enter the code</h1>
               <p className="mt-2 text-sm text-muted-foreground">
                 We sent a 6-digit code to <span className="text-foreground">{email}</span>.
               </p>
@@ -188,7 +172,7 @@ function ResetPasswordPage() {
                   type="button"
                   onClick={handleResend}
                   disabled={cooldown > 0}
-                  className="cursor-pointer text-xs font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+                  className="cursor-pointer text-sm text-brand-ink hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
                 >
                   {cooldown > 0 ? `Resend code in ${formatCooldown(cooldown)}` : "Resend code"}
                 </button>
@@ -198,7 +182,9 @@ function ResetPasswordPage() {
 
           {step === "new-password" && (
             <>
-              <h1 className="text-2xl font-semibold tracking-tight">Choose a new password</h1>
+              <h1 className="font-display text-3xl font-medium leading-tight">
+                Choose a new password
+              </h1>
               <p className="mt-2 text-sm text-muted-foreground">
                 Signing in again everywhere else will require this new password.
               </p>
@@ -236,6 +222,6 @@ function ResetPasswordPage() {
           )}
         </div>
       </div>
-    </div>
+    </AuthShell>
   );
 }
