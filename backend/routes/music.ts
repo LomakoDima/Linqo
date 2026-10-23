@@ -67,6 +67,12 @@ musicRouter.get("/file/:id", async (req, res) => {
   }
 
   res.setHeader("Content-Type", row.mime_type);
+  // A public, non-credentialed asset: always CORS-readable so the player can
+  // load it with crossOrigin and Web Audio may analyse it (the visualizer).
+  // Set unconditionally — a copy cached from a plain (no-Origin) request
+  // would otherwise lack the header and fail the later CORS load.
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
   res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
   res.send(row.data);
 });

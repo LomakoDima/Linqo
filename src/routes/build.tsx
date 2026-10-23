@@ -57,7 +57,6 @@ import { MediaLinkPicker } from "@/components/MediaLinkPicker";
 import { AudioPreviewPlayer } from "@/components/AudioPreviewPlayer";
 import { GenrePlaylistModal } from "@/components/GenrePlaylistModal";
 import { SectionCard } from "@/components/ui/section-card";
-import { CompanionModule } from "@/components/atmosphere-tab/CompanionModule";
 import { VisualizerModule } from "@/components/atmosphere-tab/VisualizerModule";
 import { AmbientSoundsModule } from "@/components/atmosphere-tab/AmbientSoundsModule";
 import { ParticlesModule } from "@/components/atmosphere-tab/ParticlesModule";
@@ -68,6 +67,7 @@ import { AppearanceHub } from "@/components/appearance-hub/AppearanceHub";
 import { publishProfile, uploadMusicTrack, getMyProfile } from "@/lib/publish";
 import { GuideTour, type TourStep } from "@/components/GuideTour";
 import { BrandMark } from "@/components/brand/BrandMark";
+import { BuilderSectionHeader } from "@/components/BuilderSectionHeader";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/lib/auth-context";
@@ -585,66 +585,72 @@ function BuilderPage() {
                 />
               </TabsContent>
 
-              <TabsContent value="content" className="mt-6 space-y-4">
-                {profile.blocks.length === 0 ? (
-                  <div data-tour="add-blocks">
-                    <ContentEmptyState onAddBlock={() => openLibrary()} />
-                  </div>
-                ) : (
-                  <>
-                    <InsertGap
-                      onInsert={() => openLibrary(0)}
-                      dropActive={draggingId !== null && insertionIndex === 0}
-                    />
-                    <AnimatePresence initial={false}>
-                      {profile.blocks.map((b, i) => (
-                        <motion.div
-                          key={b.id}
-                          variants={blockEntryVariants}
-                          initial="hidden"
-                          animate="visible"
-                          exit="exit"
-                        >
-                          <div
-                            ref={(el) => {
-                              if (el) blockNodeRefs.current.set(b.id, el);
-                              else blockNodeRefs.current.delete(b.id);
-                            }}
-                            className={`reorder-item transition-opacity duration-150 ${
-                              draggingId === b.id ? "opacity-40" : ""
-                            }`}
-                          >
-                            <BlockRenderer
-                              block={b}
-                              onChange={updateBlock}
-                              onDelete={() => removeBlock(b.id)}
-                              onDuplicate={() => duplicateBlockById(b.id)}
-                              onMove={(d) => moveBlock(b.id, d)}
-                              canUp={i > 0}
-                              canDown={i < profile.blocks.length - 1}
-                              collapsed={collapsedIds.has(b.id)}
-                              onToggleCollapse={() => toggleCollapsed(b.id)}
-                              dragHandleProps={getDragHandleProps(b.id)}
-                            />
-                          </div>
-                          <InsertGap
-                            onInsert={() => openLibrary(i + 1)}
-                            dropActive={draggingId !== null && insertionIndex === i + 1}
-                          />
-                        </motion.div>
-                      ))}
-                    </AnimatePresence>
-                    <div data-tour="add-blocks" className="flex justify-center pt-1">
-                      <Button
-                        variant="outline"
-                        className="rounded-full border-dashed"
-                        onClick={() => openLibrary()}
-                      >
-                        <Plus className="mr-2 h-4 w-4" /> Add Block
-                      </Button>
+              <TabsContent value="content" className="mt-6 space-y-10">
+                <BuilderSectionHeader label="Content" title="Build your page, block by block.">
+                  Add links, images and more. Arrange your blocks in the order you want visitors to
+                  see them.
+                </BuilderSectionHeader>
+                <div className="space-y-4">
+                  {profile.blocks.length === 0 ? (
+                    <div data-tour="add-blocks">
+                      <ContentEmptyState onAddBlock={() => openLibrary()} />
                     </div>
-                  </>
-                )}
+                  ) : (
+                    <>
+                      <InsertGap
+                        onInsert={() => openLibrary(0)}
+                        dropActive={draggingId !== null && insertionIndex === 0}
+                      />
+                      <AnimatePresence initial={false}>
+                        {profile.blocks.map((b, i) => (
+                          <motion.div
+                            key={b.id}
+                            variants={blockEntryVariants}
+                            initial="hidden"
+                            animate="visible"
+                            exit="exit"
+                          >
+                            <div
+                              ref={(el) => {
+                                if (el) blockNodeRefs.current.set(b.id, el);
+                                else blockNodeRefs.current.delete(b.id);
+                              }}
+                              className={`reorder-item transition-opacity duration-150 ${
+                                draggingId === b.id ? "opacity-40" : ""
+                              }`}
+                            >
+                              <BlockRenderer
+                                block={b}
+                                onChange={updateBlock}
+                                onDelete={() => removeBlock(b.id)}
+                                onDuplicate={() => duplicateBlockById(b.id)}
+                                onMove={(d) => moveBlock(b.id, d)}
+                                canUp={i > 0}
+                                canDown={i < profile.blocks.length - 1}
+                                collapsed={collapsedIds.has(b.id)}
+                                onToggleCollapse={() => toggleCollapsed(b.id)}
+                                dragHandleProps={getDragHandleProps(b.id)}
+                              />
+                            </div>
+                            <InsertGap
+                              onInsert={() => openLibrary(i + 1)}
+                              dropActive={draggingId !== null && insertionIndex === i + 1}
+                            />
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
+                      <div data-tour="add-blocks" className="flex justify-center pt-1">
+                        <Button
+                          variant="outline"
+                          className="w-full border-dashed"
+                          onClick={() => openLibrary()}
+                        >
+                          <Plus className="mr-2 h-4 w-4" /> Add Block
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
               </TabsContent>
 
               <TabsContent value="design" className="mt-6">
@@ -657,124 +663,132 @@ function BuilderPage() {
                 />
               </TabsContent>
 
-              <TabsContent value="music" className="mt-6 space-y-4">
-                <SectionCard
-                  icon={Music2}
-                  title="Background Music"
-                  description="A track visitors can tap to play — never autoplays with sound."
-                  headerAccessory={
-                    <Switch
-                      checked={profile.music?.enabled ?? false}
-                      onCheckedChange={(checked) => updateMusic({ enabled: checked })}
-                    />
-                  }
-                >
-                  {profile.music?.enabled ? (
-                    <>
-                      <div>
-                        <Label className="mb-3 block">Pick a vibe</Label>
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                          {(Object.keys(MUSIC_GENRES) as MusicGenre[]).map((g) => (
-                            <MusicGenreCard
-                              key={g}
-                              genreKey={g}
-                              active={(profile.music?.genre ?? "lofi") === g}
-                              onSelect={() => setOpenGenre(g)}
-                            />
-                          ))}
-                        </div>
-                      </div>
-
-                      <GenrePlaylistModal
-                        genreKey={openGenre}
-                        open={openGenre !== null}
-                        onOpenChange={(o) => {
-                          if (!o) setOpenGenre(null);
-                        }}
-                        onUseTrack={(g, url) => {
-                          updateMusic({ genre: g, url });
-                          setOpenGenre(null);
-                        }}
-                        onUseGenre={(g) => {
-                          updateMusic({ genre: g });
-                          setOpenGenre(null);
-                        }}
+              <TabsContent value="music" className="mt-6 space-y-10">
+                <BuilderSectionHeader label="Atmosphere" title="Set the mood.">
+                  Choose music, ambient sounds and motion to make your page feel like you.
+                </BuilderSectionHeader>
+                <div className="space-y-4">
+                  <SectionCard
+                    icon={Music2}
+                    title="Background Music"
+                    description="A track visitors can tap to play — never autoplays with sound."
+                    headerAccessory={
+                      <Switch
+                        checked={profile.music?.enabled ?? false}
+                        onCheckedChange={(checked) => updateMusic({ enabled: checked })}
                       />
-
-                      <div>
-                        <Label className="mb-3 block">Track</Label>
-                        <MediaLinkPicker
-                          value={profile.music?.url ?? ""}
-                          displayLabel={profile.music?.url ?? ""}
-                          onUrlChange={(url) => updateMusic({ url })}
-                          onUpload={handleMusicFile}
-                          onClear={() => updateMusic({ url: undefined })}
-                          accept="audio/*"
-                          kind="audio"
-                          uploading={musicUploading}
-                          placeholder="Paste a link to an mp3 you host…"
-                        />
-                        <p className="mt-2 text-xs text-muted-foreground">
-                          Upload a file (MP3, WAV, OGG, or M4A — a short loop works best) or link to
-                          one you already host.
-                        </p>
-                        {profile.music?.url && <AudioPreviewPlayer src={profile.music.url} />}
-                      </div>
-
-                      <div className="grid gap-6 sm:grid-cols-2">
-                        <div className="flex items-center gap-2.5">
-                          <Checkbox
-                            id="music-loop"
-                            checked={profile.music?.loop ?? true}
-                            onCheckedChange={(checked) => updateMusic({ loop: checked === true })}
-                          />
-                          <Label
-                            htmlFor="music-loop"
-                            className="cursor-pointer select-none text-sm font-normal"
-                          >
-                            Loop
-                          </Label>
-                        </div>
+                    }
+                  >
+                    {profile.music?.enabled ? (
+                      <>
                         <div>
-                          <Label className="mb-2.5 flex items-center justify-between">
-                            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                              Volume
-                            </span>
-                            <span className="text-xs font-medium text-muted-foreground">
-                              {profile.music?.volume ?? 70}%
-                            </span>
-                          </Label>
-                          <Slider
-                            min={0}
-                            max={100}
-                            step={1}
-                            value={[profile.music?.volume ?? 70]}
-                            onValueChange={([v]) => updateMusic({ volume: v })}
-                          />
+                          <Label className="mb-3 block">Pick a vibe</Label>
+                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                            {(Object.keys(MUSIC_GENRES) as MusicGenre[]).map((g) => (
+                              <MusicGenreCard
+                                key={g}
+                                genreKey={g}
+                                active={(profile.music?.genre ?? "lofi") === g}
+                                onSelect={() => setOpenGenre(g)}
+                              />
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    </>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      Turn on Background Music to pick a vibe and track.
-                    </p>
-                  )}
-                </SectionCard>
 
-                <VisualizerModule music={profile.music} updateMusic={updateMusic} />
+                        <GenrePlaylistModal
+                          genreKey={openGenre}
+                          open={openGenre !== null}
+                          onOpenChange={(o) => {
+                            if (!o) setOpenGenre(null);
+                          }}
+                          onUseTrack={(g, url) => {
+                            updateMusic({ genre: g, url });
+                            setOpenGenre(null);
+                          }}
+                          onUseGenre={(g) => {
+                            updateMusic({ genre: g });
+                            setOpenGenre(null);
+                          }}
+                        />
 
-                <AmbientSoundsModule
-                  ambient={profile.ambient}
-                  updateAmbient={updateAmbient}
-                  slug={profile.slug}
-                  uploadTrack={uploadMusicTrack}
-                />
+                        <div>
+                          <Label className="mb-3 block">Track</Label>
+                          <MediaLinkPicker
+                            value={profile.music?.url ?? ""}
+                            displayLabel={
+                              libraryTrackLabel(profile.music?.url) ?? profile.music?.url ?? ""
+                            }
+                            onUrlChange={(url) => updateMusic({ url })}
+                            onUpload={handleMusicFile}
+                            onClear={() => updateMusic({ url: undefined })}
+                            accept="audio/*"
+                            kind="audio"
+                            uploading={musicUploading}
+                            placeholder="Paste a link to an mp3 you host…"
+                          />
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Upload a file (MP3, WAV, OGG, or M4A — a short loop works best) or link
+                            to one you already host.
+                          </p>
+                          {profile.music?.url && <AudioPreviewPlayer src={profile.music.url} />}
+                        </div>
 
-                <ParticlesModule particles={profile.particles} updateParticles={updateParticles} />
+                        <div className="grid gap-6 sm:grid-cols-2">
+                          <div className="flex items-center gap-2.5">
+                            <Checkbox
+                              id="music-loop"
+                              checked={profile.music?.loop ?? true}
+                              onCheckedChange={(checked) => updateMusic({ loop: checked === true })}
+                            />
+                            <Label
+                              htmlFor="music-loop"
+                              className="cursor-pointer select-none text-sm font-normal"
+                            >
+                              Loop
+                            </Label>
+                          </div>
+                          <div>
+                            <Label className="mb-2.5 flex items-center justify-between">
+                              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                Volume
+                              </span>
+                              <span className="text-xs font-medium text-muted-foreground">
+                                {profile.music?.volume ?? 70}%
+                              </span>
+                            </Label>
+                            <Slider
+                              min={0}
+                              max={100}
+                              step={1}
+                              value={[profile.music?.volume ?? 70]}
+                              onValueChange={([v]) => updateMusic({ volume: v })}
+                            />
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Turn on Background Music to pick a vibe and track.
+                      </p>
+                    )}
+                  </SectionCard>
 
-                <CompanionModule profile={profile} update={update} />
+                  <VisualizerModule music={profile.music} updateMusic={updateMusic} />
 
-                <FutureEffectsPlaceholderCard />
+                  <AmbientSoundsModule
+                    ambient={profile.ambient}
+                    updateAmbient={updateAmbient}
+                    slug={profile.slug}
+                    uploadTrack={uploadMusicTrack}
+                  />
+
+                  <ParticlesModule
+                    particles={profile.particles}
+                    updateParticles={updateParticles}
+                  />
+
+                  <FutureEffectsPlaceholderCard />
+                </div>
               </TabsContent>
 
               <TabsContent value="profile" className="mt-6">
@@ -877,6 +891,16 @@ function BuilderPage() {
   );
 }
 
+// "Rainy Window · Lo-fi" for a bundled track instead of its raw file path.
+function libraryTrackLabel(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  for (const g of Object.values(MUSIC_GENRES)) {
+    const track = g.tracks?.find((t) => t.url === url);
+    if (track) return `${track.label} · ${g.label}`;
+  }
+  return undefined;
+}
+
 function MusicGenreCard({
   genreKey,
   active,
@@ -892,14 +916,27 @@ function MusicGenreCard({
     <button
       type="button"
       onClick={onSelect}
-      className={`cursor-pointer overflow-hidden rounded-xl text-left transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] ${
+      aria-pressed={active}
+      className={`group min-w-0 cursor-pointer overflow-hidden rounded-lg text-left transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
         active
-          ? "ring-2 ring-primary ring-offset-2 shadow-md"
+          ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
           : "ring-1 ring-border hover:ring-muted-foreground/30"
       }`}
     >
       {g.image ? (
-        <img src={g.image} alt={`${g.label} — ${g.blurb}`} className="h-16 w-full object-cover" />
+        <div className={`relative h-20 w-full overflow-hidden ${g.gradient}`}>
+          <img
+            src={g.image}
+            alt=""
+            aria-hidden
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+          <div className="absolute inset-x-3 bottom-2 text-white">
+            <div className="text-sm font-semibold leading-tight">{g.label}</div>
+            <div className="truncate text-[11px] text-white/75">{g.blurb}</div>
+          </div>
+        </div>
       ) : (
         <div className={`flex items-center gap-2.5 px-3 py-3 ${g.gradient}`}>
           <span

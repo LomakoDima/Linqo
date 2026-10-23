@@ -115,7 +115,7 @@ export function PublishDialog({
           <div className="flex flex-col items-center gap-4 py-6 text-center">
             <XCircle className="h-10 w-10 text-destructive" />
             <div>
-              <p className="font-semibold">Something went wrong</p>
+              <p className="font-display text-2xl font-medium">Couldn’t publish your page</p>
               <p className="mt-1 text-sm text-muted-foreground">{errorMsg}</p>
             </div>
             <div className="flex gap-2">
@@ -129,7 +129,7 @@ export function PublishDialog({
           </div>
         ) : (
           <div className="flex flex-col items-center gap-6 py-6">
-            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-primary text-primary-foreground">
+            <div className="grid h-14 w-14 place-items-center rounded-ui border border-border text-foreground">
               <Rocket className="h-6 w-6" />
             </div>
             <ul className="w-full space-y-3">
@@ -139,7 +139,7 @@ export function PublishDialog({
                 return (
                   <li key={step} className="flex items-center gap-3 text-sm">
                     {checked ? (
-                      <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                      <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
                     ) : active ? (
                       <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
                     ) : (

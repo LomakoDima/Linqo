@@ -6,9 +6,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 
 const SHAPE_CLASS: Record<"square" | "circle" | "wide", string> = {
-  square: "h-14 w-14 rounded-xl",
+  square: "h-14 w-14 rounded-ui",
   circle: "h-14 w-14 rounded-full",
-  wide: "h-14 w-24 rounded-xl",
+  wide: "h-14 w-24 rounded-ui",
 };
 
 const KIND_ICON: Record<"image" | "audio", LucideIcon> = {

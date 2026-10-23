@@ -1,29 +1,12 @@
-import { useEffect, useRef, useState } from "react";
-import { motion } from "motion/react";
-import { ImageIcon, Palette, Sparkles as GradientIcon, Check, UploadCloud, X } from "lucide-react";
-import { SectionCard } from "@/components/ui/section-card";
+import { useRef, useState } from "react";
+import { Check, ImagePlus, Loader2, Trash2, Upload } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { SegmentedToggle } from "@/components/BlockEditor";
+import { toast } from "@/components/notifications";
 import { BANNER_STYLES, type BannerStyle, type Profile } from "@/lib/link-store";
 
-const MOODY_KEYS = (Object.keys(BANNER_STYLES) as BannerStyle[]).filter(
-  (k) => BANNER_STYLES[k].kind === "moody",
-);
-const GRADIENT_KEYS = (Object.keys(BANNER_STYLES) as BannerStyle[]).filter(
-  (k) => BANNER_STYLES[k].kind === "gradient",
-);
-
-type CardKind = "image" | "solid" | "gradient";
-
-function activeCardOf(profile: Profile): CardKind {
-  if ((profile.coverType ?? "image") === "image") return "image";
-  const current = BANNER_STYLES[profile.coverStyle ?? "dark"] ?? BANNER_STYLES.dark;
-  return current.kind === "gradient" ? "gradient" : "solid";
-}
-
-const CARDS: { key: CardKind; label: string; icon: typeof ImageIcon }[] = [
-  { key: "image", label: "Upload Image", icon: ImageIcon },
-  { key: "solid", label: "Solid Color", icon: Palette },
-  { key: "gradient", label: "Gradient", icon: GradientIcon },
-];
+type CoverKind = "image" | "solid" | "gradient";
 
 export function CoverSelector({
   profile,
@@ -34,119 +17,44 @@ export function CoverSelector({
   update: (patch: Partial<Profile>) => void;
   onUpload: (file: File) => void | Promise<void>;
 }) {
-  const active = activeCardOf(profile);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const preset = BANNER_STYLES[profile.coverStyle ?? "dark"] ?? BANNER_STYLES.dark;
+  const kind: CoverKind =
+    profile.coverType !== "color" ? "image" : preset.kind === "gradient" ? "gradient" : "solid";
 
-  const selectCard = (key: CardKind) => {
-    if (key === "image") {
+  const setKind = (next: CoverKind) => {
+    if (next === "image") {
       update({ coverType: "image" });
       return;
     }
-    const keys = key === "solid" ? MOODY_KEYS : GRADIENT_KEYS;
-    const currentKind = BANNER_STYLES[profile.coverStyle ?? "dark"]?.kind;
-    const wantsKind = key === "solid" ? "moody" : "gradient";
+    const match = next === "gradient" ? "gradient" : "moody";
+    const first = (Object.keys(BANNER_STYLES) as BannerStyle[]).find(
+      (k) => BANNER_STYLES[k].kind === match,
+    );
     update({
       coverType: "color",
-      coverStyle: currentKind === wantsKind ? profile.coverStyle : keys[0],
+      coverStyle: preset.kind === match ? (profile.coverStyle ?? first) : first,
     });
   };
 
-  return (
-    <SectionCard icon={ImageIcon} title="Cover" description="Customize the top of your page.">
-      <div className="grid grid-cols-3 gap-2.5">
-        {CARDS.map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => selectCard(key)}
-            className={`flex cursor-pointer flex-col items-center gap-1.5 rounded-xl border px-3 py-3.5 text-center transition-all duration-200 ${
-              active === key
-                ? "border-primary bg-primary/5 shadow-sm"
-                : "border-border hover:border-muted-foreground/40"
-            }`}
-          >
-            <Icon
-              className={`h-5 w-5 ${active === key ? "text-primary" : "text-muted-foreground"}`}
-            />
-            <span className="text-xs font-medium">{label}</span>
-          </button>
-        ))}
-      </div>
-
-      {active === "image" ? (
-        <CoverDropzone profile={profile} update={update} onUpload={onUpload} />
-      ) : (
-        <div className="flex flex-wrap gap-2.5">
-          {(active === "solid" ? MOODY_KEYS : GRADIENT_KEYS).map((k) => {
-            const s = BANNER_STYLES[k];
-            const selected = profile.coverStyle === k;
-            return (
-              <button
-                key={k}
-                type="button"
-                onClick={() => update({ coverStyle: k })}
-                title={s.label}
-                aria-label={s.label}
-                className={`relative h-11 w-11 shrink-0 cursor-pointer rounded-xl transition-all duration-200 hover:scale-110 active:scale-95 ${s.gradient} ${
-                  selected
-                    ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
-                    : "ring-1 ring-border hover:ring-muted-foreground/40"
-                }`}
-              >
-                {selected && (
-                  <Check
-                    className={`absolute inset-0 m-auto h-4 w-4 drop-shadow ${s.light ? "text-neutral-900" : "text-white"}`}
-                  />
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </SectionCard>
-  );
-}
-
-function CoverDropzone({
-  profile,
-  update,
-  onUpload,
-}: {
-  profile: Profile;
-  update: (patch: Partial<Profile>) => void;
-  onUpload: (file: File) => void | Promise<void>;
-}) {
-  const [uploading, setUploading] = useState(false);
-  const [dragging, setDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   const handleFile = async (file: File) => {
-    if (!file.type.startsWith("image/")) return;
+    if (uploading || !file.type.startsWith("image/")) return;
     setUploading(true);
     try {
       await onUpload(file);
+      update({ coverType: "image" });
+    } catch {
+      toast.error("Couldn't upload that cover");
     } finally {
       setUploading(false);
     }
   };
 
-  useEffect(() => {
-    const onPaste = (e: ClipboardEvent) => {
-      const file = Array.from(e.clipboardData?.items ?? [])
-        .find((item) => item.type.startsWith("image/"))
-        ?.getAsFile();
-      if (file) handleFile(file);
-    };
-    document.addEventListener("paste", onPaste);
-    return () => document.removeEventListener("paste", onPaste);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   return (
     <div
-      className={`relative flex h-32 cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border-2 border-dashed transition-colors ${
-        dragging ? "border-primary bg-primary/5" : "border-border"
-      }`}
-      onClick={() => fileInputRef.current?.click()}
+      className={`relative h-36 border-b border-border sm:h-44 ${kind === "image" ? "bg-muted" : preset.gradient} ${dragging ? "ring-2 ring-inset ring-ring" : ""}`}
       onDragOver={(e) => {
         e.preventDefault();
         setDragging(true);
@@ -155,53 +63,114 @@ function CoverDropzone({
       onDrop={(e) => {
         e.preventDefault();
         setDragging(false);
-        const file = e.dataTransfer.files?.[0];
-        if (file) handleFile(file);
+        const file = e.dataTransfer.files[0];
+        if (file) void handleFile(file);
+      }}
+      onPaste={(e) => {
+        const file = Array.from(e.clipboardData.items)
+          .find((item) => item.type.startsWith("image/"))
+          ?.getAsFile();
+        if (file) {
+          e.preventDefault();
+          void handleFile(file);
+        }
       }}
     >
-      {profile.cover && (
-        <>
-          <img src={profile.cover} alt="" className="absolute inset-0 h-full w-full object-cover" />
-          <button
-            type="button"
-            aria-label="Remove cover image"
-            onClick={(e) => {
-              e.stopPropagation();
-              update({ cover: undefined, coverName: undefined });
-            }}
-            className="absolute right-2 top-2 z-10 grid h-6 w-6 cursor-pointer place-items-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </>
+      {kind === "image" && profile.cover && (
+        <img src={profile.cover} alt="" className="absolute inset-0 h-full w-full object-cover" />
       )}
-      <div
-        className={`relative flex flex-col items-center gap-1.5 ${profile.cover ? "rounded-lg bg-black/55 px-4 py-3 text-white" : "text-muted-foreground"}`}
-      >
-        {uploading ? (
-          <motion.span
-            className="h-5 w-5 rounded-full border-2 border-current/30 border-t-current"
-            animate={{ rotate: 360 }}
-            transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }}
-          />
-        ) : (
-          <UploadCloud className="h-5 w-5" />
-        )}
-        <span className="text-xs font-medium">
-          {profile.cover
-            ? "Drop, paste, or click to replace"
-            : "Upload an image to personalize your page"}
-        </span>
+      {uploading && (
+        <div
+          role="status"
+          aria-label="Uploading cover"
+          className="absolute inset-0 grid place-items-center bg-card/70"
+        >
+          <Loader2 className="h-5 w-5 animate-spin" />
+        </div>
+      )}
+      <div className="absolute right-3 top-3">
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="bg-card text-card-foreground"
+            >
+              <ImagePlus className="h-4 w-4" /> Cover
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-72 max-w-[calc(100vw-2rem)] space-y-4">
+            <SegmentedToggle<CoverKind>
+              value={kind}
+              onChange={setKind}
+              options={[
+                { value: "image", label: "Image" },
+                { value: "solid", label: "Solid" },
+                { value: "gradient", label: "Gradient" },
+              ]}
+            />
+            {kind === "image" ? (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={uploading}
+                  onClick={() => inputRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4" /> {profile.cover ? "Replace" : "Upload"}
+                </Button>
+                {profile.cover && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={uploading}
+                    onClick={() => update({ cover: undefined, coverName: undefined })}
+                  >
+                    <Trash2 className="h-4 w-4" /> Remove
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-5 gap-2">
+                {(Object.keys(BANNER_STYLES) as BannerStyle[])
+                  .filter(
+                    (k) => BANNER_STYLES[k].kind === (kind === "gradient" ? "gradient" : "moody"),
+                  )
+                  .map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      aria-label={BANNER_STYLES[k].label}
+                      title={BANNER_STYLES[k].label}
+                      aria-pressed={profile.coverStyle === k}
+                      onClick={() => update({ coverStyle: k })}
+                      className={`relative h-9 cursor-pointer rounded-ui ring-1 ring-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${BANNER_STYLES[k].gradient}`}
+                    >
+                      {profile.coverStyle === k && (
+                        <Check
+                          className={`absolute inset-0 m-auto h-4 w-4 ${BANNER_STYLES[k].light ? "text-neutral-900" : "text-white"}`}
+                        />
+                      )}
+                    </button>
+                  ))}
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
       </div>
       <input
-        ref={fileInputRef}
+        ref={inputRef}
         type="file"
         accept="image/*"
+        aria-label="Cover image file"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
           e.target.value = "";
-          if (file) handleFile(file);
+          if (file) void handleFile(file);
         }}
       />
     </div>

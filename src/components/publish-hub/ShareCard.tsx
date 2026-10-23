@@ -1,4 +1,3 @@
-import { motion } from "motion/react";
 import {
   Share2,
   Copy,
@@ -11,11 +10,9 @@ import {
   Mail,
   type LucideIcon,
 } from "lucide-react";
-import { SectionCard } from "@/components/ui/section-card";
 import { toast } from "@/components/notifications";
 import { copyToClipboard } from "@/lib/clipboard";
 import { shareLinks } from "@/lib/share-links";
-import { libraryCardHover, libraryCardTap } from "@/lib/block-motion/variants";
 import type { Profile } from "@/lib/link-store";
 
 function ShareButton({
@@ -28,18 +25,16 @@ function ShareButton({
   onClick: () => void;
 }) {
   return (
-    <motion.button
+    <button
       type="button"
       onClick={onClick}
-      whileHover={libraryCardHover}
-      whileTap={libraryCardTap}
-      className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border border-border bg-card/60 p-3.5 text-center transition-colors hover:border-muted-foreground/30"
+      className="flex min-w-0 cursor-pointer items-center gap-3 rounded-ui border border-border px-4 py-3 text-left transition-colors duration-150 hover:border-foreground/50 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <span className="grid h-9 w-9 place-items-center rounded-full bg-accent/70 text-accent-foreground">
+      <span className="shrink-0 text-muted-foreground">
         <Icon className="h-4 w-4" />
       </span>
-      <span className="text-xs font-medium text-foreground">{label}</span>
-    </motion.button>
+      <span className="whitespace-nowrap text-sm font-medium text-foreground">{label}</span>
+    </button>
   );
 }
 
@@ -77,13 +72,8 @@ export function ShareCard({ profile, shortUrl }: { profile: Profile; shortUrl: s
   };
 
   return (
-    <SectionCard
-      icon={Share2}
-      title="Share"
-      description="Send your page out into the world."
-      defaultOpen={false}
-    >
-      <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-4">
+    <section aria-label="Share your page">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
         {typeof navigator !== "undefined" && "share" in navigator && (
           <ShareButton icon={Share2} label="Share" onClick={nativeShare} />
         )}
@@ -96,6 +86,6 @@ export function ShareCard({ profile, shortUrl }: { profile: Profile; shortUrl: s
         <ShareButton icon={Phone} label="WhatsApp" onClick={() => openShare(links.whatsapp)} />
         <ShareButton icon={Mail} label="Email" onClick={() => openShare(links.email)} />
       </div>
-    </SectionCard>
+    </section>
   );
 }

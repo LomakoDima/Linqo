@@ -21,8 +21,10 @@ import {
   DIVIDER_ICON_NAMES,
   HEADING_SIZES,
   IMAGE_SHAPES,
+  bannerPatternSize,
   bannerPatternUrl,
   imageFieldDisplay,
+  normalizeBannerPattern,
   resolveTextRuns,
   uid,
   type BannerLayout,
@@ -245,9 +247,9 @@ export function BlockFieldsEditor({
                     onClick={() =>
                       withViewTransition(() => onChange({ ...block, bannerLayout: k }))
                     }
-                    className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm capitalize transition-all duration-200 ${
+                    className={`cursor-pointer rounded-ui px-3 py-1.5 text-sm capitalize transition-colors duration-150 ${
                       active
-                        ? "bg-primary text-primary-foreground shadow-md"
+                        ? "bg-primary text-primary-foreground"
                         : "border border-border text-muted-foreground hover:text-foreground"
                     }`}
                   >
@@ -263,6 +265,42 @@ export function BlockFieldsEditor({
               Banner pattern
             </Label>
             <BannerPatternPicker block={block} onChange={onChange} />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <Label className="mb-2.5 flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Pattern opacity
+                </span>
+                <span className="text-xs font-medium text-muted-foreground">
+                  {block.bannerPatternOpacity ?? 70}%
+                </span>
+              </Label>
+              <Slider
+                min={0}
+                max={100}
+                step={1}
+                value={[block.bannerPatternOpacity ?? 70]}
+                onValueChange={([v]) => onChange({ ...block, bannerPatternOpacity: v })}
+              />
+            </div>
+            <div>
+              <Label className="mb-2.5 flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Pattern scale
+                </span>
+                <span className="text-xs font-medium text-muted-foreground">
+                  {block.bannerPatternScale ?? 100}%
+                </span>
+              </Label>
+              <Slider
+                min={50}
+                max={200}
+                step={5}
+                value={[block.bannerPatternScale ?? 100]}
+                onValueChange={([v]) => onChange({ ...block, bannerPatternScale: v })}
+              />
+            </div>
           </div>
           <div>
             <Label className="mb-2.5 flex items-center justify-between">
@@ -332,9 +370,9 @@ export function BlockFieldsEditor({
                     key={k}
                     type="button"
                     onClick={() => onChange({ ...block, headingSize: k })}
-                    className={`cursor-pointer rounded-lg px-3.5 py-1.5 text-sm transition-all duration-200 ${
+                    className={`cursor-pointer rounded-ui px-3.5 py-1.5 text-sm transition-colors duration-150 ${
                       active
-                        ? "bg-primary text-primary-foreground shadow-md"
+                        ? "bg-primary text-primary-foreground"
                         : "border border-border text-muted-foreground hover:text-foreground"
                     }`}
                   >
@@ -530,9 +568,9 @@ export function BlockFieldsEditor({
                     key={k}
                     type="button"
                     onClick={() => onChange({ ...block, imageShape: k })}
-                    className={`cursor-pointer rounded-lg px-3.5 py-1.5 text-sm transition-all duration-200 ${
+                    className={`cursor-pointer rounded-ui px-3.5 py-1.5 text-sm transition-colors duration-150 ${
                       active
-                        ? "bg-primary text-primary-foreground shadow-md"
+                        ? "bg-primary text-primary-foreground"
                         : "border border-border text-muted-foreground hover:text-foreground"
                     }`}
                   >
@@ -655,9 +693,9 @@ export function BlockFieldsEditor({
                       key={name}
                       type="button"
                       onClick={() => onChange({ ...block, dividerIcon: name })}
-                      className={`grid h-9 w-9 cursor-pointer place-items-center rounded-lg transition-all duration-200 ${
+                      className={`grid h-9 w-9 cursor-pointer place-items-center rounded-ui transition-colors duration-150 ${
                         active
-                          ? "bg-primary text-primary-foreground shadow-md"
+                          ? "bg-primary text-primary-foreground"
                           : "border border-border text-muted-foreground hover:text-foreground"
                       }`}
                     >
@@ -678,6 +716,67 @@ export function BlockFieldsEditor({
               fallback="#8a8a8a"
             />
           </div>
+          <div>
+            <Label className="mb-2.5 flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Opacity
+              </span>
+              <span className="text-xs font-medium text-muted-foreground">
+                {block.dividerOpacity ??
+                  (block.dividerColor || block.dividerStyle === "icon" ? 100 : 15)}
+                %
+              </span>
+            </Label>
+            <Slider
+              aria-label="Divider opacity"
+              min={0}
+              max={100}
+              step={1}
+              value={[
+                block.dividerOpacity ??
+                  (block.dividerColor || block.dividerStyle === "icon" ? 100 : 15),
+              ]}
+              onValueChange={([v]) => onChange({ ...block, dividerOpacity: v })}
+            />
+          </div>
+          {(block.dividerStyle ?? "solid") !== "icon" && (
+            <div className="grid gap-3 sm:grid-cols-2 animate-swap-in">
+              <div>
+                <Label className="mb-2.5 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    Width
+                  </span>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {block.dividerWidth ?? 100}%
+                  </span>
+                </Label>
+                <Slider
+                  min={25}
+                  max={100}
+                  step={5}
+                  value={[block.dividerWidth ?? 100]}
+                  onValueChange={([v]) => onChange({ ...block, dividerWidth: v })}
+                />
+              </div>
+              <div>
+                <Label className="mb-2.5 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    Thickness
+                  </span>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {block.dividerThickness ?? 1}px
+                  </span>
+                </Label>
+                <Slider
+                  min={1}
+                  max={4}
+                  step={1}
+                  value={[block.dividerThickness ?? 1]}
+                  onValueChange={([v]) => onChange({ ...block, dividerThickness: v })}
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -769,9 +868,9 @@ export function BlockFieldsEditor({
                     key={k}
                     type="button"
                     onClick={() => onChange({ ...block, galleryShape: k })}
-                    className={`cursor-pointer rounded-lg px-3.5 py-1.5 text-sm transition-all duration-200 ${
+                    className={`cursor-pointer rounded-ui px-3.5 py-1.5 text-sm transition-colors duration-150 ${
                       active
-                        ? "bg-primary text-primary-foreground shadow-md"
+                        ? "bg-primary text-primary-foreground"
                         : "border border-border text-muted-foreground hover:text-foreground"
                     }`}
                   >
@@ -787,7 +886,7 @@ export function BlockFieldsEditor({
               {(block.galleryImages ?? []).map((img, i) => (
                 <div
                   key={img.id}
-                  className="group relative overflow-hidden rounded-lg border border-border"
+                  className="group relative overflow-hidden rounded-ui border border-border"
                 >
                   <img src={img.image} alt="" className="aspect-square w-full object-cover" />
                   <button
@@ -804,7 +903,7 @@ export function BlockFieldsEditor({
                   </button>
                 </div>
               ))}
-              <label className="grid aspect-square cursor-pointer place-items-center rounded-lg border border-dashed border-border text-muted-foreground transition-colors hover:border-muted-foreground/40 hover:text-foreground">
+              <label className="grid aspect-square cursor-pointer place-items-center rounded-ui border border-dashed border-border text-muted-foreground transition-colors hover:border-muted-foreground/40 hover:text-foreground">
                 <Plus className="h-5 w-5" />
                 <input
                   type="file"
@@ -874,7 +973,7 @@ export function BlockFieldsEditor({
         <div className="space-y-4">
           <div className="space-y-3">
             {(block.timelineItems ?? []).map((item, i) => (
-              <div key={item.id} className="space-y-2 rounded-lg border border-border p-3">
+              <div key={item.id} className="space-y-2 rounded-ui border border-border p-3">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Milestone {i + 1}
@@ -990,7 +1089,7 @@ export function BlockFieldsEditor({
         <div className="space-y-4">
           <div className="space-y-3">
             {(block.faqItems ?? []).map((item, i) => (
-              <div key={item.id} className="space-y-2 rounded-lg border border-border p-3">
+              <div key={item.id} className="space-y-2 rounded-ui border border-border p-3">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Question {i + 1}
@@ -1101,11 +1200,11 @@ export function SegmentedToggle<T extends string>({
   }, [value, options]);
 
   return (
-    <div ref={containerRef} className="relative flex w-fit gap-0.5 rounded-lg bg-muted/60 p-0.5">
+    <div ref={containerRef} className="relative flex w-fit gap-0.5 rounded-ui bg-muted/60 p-0.5">
       {indicator && (
         <div
           aria-hidden
-          className="absolute inset-y-0.5 rounded-md bg-background shadow-sm transition-[left,width] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]"
+          className="absolute inset-y-0.5 rounded-md bg-background transition-opacity duration-150 ease-[cubic-bezier(0.16,1,0.3,1)]"
           style={{ left: indicator.left, width: indicator.width }}
         />
       )}
@@ -1172,7 +1271,7 @@ export function ColorField({
     <div>
       {label && <Label className="mb-1.5 block text-[11px] text-muted-foreground">{label}</Label>}
       <div className="flex items-center gap-2">
-        <div className="relative h-9 w-10 shrink-0 overflow-hidden rounded-lg border border-border shadow-sm">
+        <div className="relative h-9 w-10 shrink-0 overflow-hidden rounded-ui border border-border shadow-sm">
           <input
             type="color"
             value={isHexColor(value) ? value : fallback}
@@ -1213,9 +1312,9 @@ function StyleToggle({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`cursor-pointer rounded-lg px-3.5 py-1.5 text-sm transition-all duration-200 ${className} ${
+      className={`cursor-pointer rounded-ui px-3.5 py-1.5 text-sm transition-colors duration-150 ${className} ${
         active
-          ? "bg-primary text-primary-foreground shadow-md"
+          ? "bg-primary text-primary-foreground"
           : "border border-border text-muted-foreground hover:text-foreground"
       }`}
     >
@@ -1540,7 +1639,7 @@ function TextBlockFields({
   return (
     <div>
       <Label className="mb-1.5 block">Text</Label>
-      <div className="overflow-hidden rounded-lg border border-input bg-background shadow-sm focus-within:ring-2 focus-within:ring-ring">
+      <div className="overflow-hidden rounded-ui border border-input bg-background focus-within:ring-2 focus-within:ring-ring">
         {/* One toolbar for every property — font, size, style, align, color —
             sitting directly on top of the text it edits, like a real word
             processor, so it's never ambiguous what the controls apply to. */}
@@ -1846,7 +1945,7 @@ function BannerPresetSwatchPicker({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-border bg-background px-3.5 py-2.5 text-left transition-colors hover:border-muted-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-ui border border-border bg-background px-3.5 py-2.5 text-left transition-colors hover:border-muted-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <span className="flex items-center gap-2.5">
             <span
@@ -1910,7 +2009,8 @@ function BannerPatternPicker({
   block: LinkBlock;
   onChange: (b: LinkBlock) => void;
 }) {
-  const current = BANNER_PATTERNS[block.bannerPattern ?? "honeycomb"] ?? BANNER_PATTERNS.honeycomb;
+  const currentPattern = normalizeBannerPattern(block.bannerPattern);
+  const current = BANNER_PATTERNS[currentPattern] ?? BANNER_PATTERNS.honeycomb;
   const [open, setOpen] = useState(false);
 
   return (
@@ -1918,13 +2018,16 @@ function BannerPatternPicker({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-border bg-background px-3.5 py-2.5 text-left transition-colors hover:border-muted-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-ui border border-border bg-background px-3.5 py-2.5 text-left transition-colors hover:border-muted-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <span className="flex items-center gap-2.5">
             <span
-              className="h-6 w-6 shrink-0 rounded-full bg-neutral-800 ring-1 ring-black/10"
+              className="h-7 w-11 shrink-0 rounded-md bg-neutral-800 ring-1 ring-black/10"
               style={{
-                backgroundImage: bannerPatternUrl(block.bannerPattern ?? "honeycomb", false),
+                backgroundImage: bannerPatternUrl(currentPattern, false),
+                backgroundPosition: "center",
+                backgroundRepeat: "repeat",
+                backgroundSize: bannerPatternSize(currentPattern),
               }}
             />
             <span className="text-sm">{current.label}</span>
@@ -1933,10 +2036,10 @@ function BannerPatternPicker({
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-72 max-h-96 overflow-y-auto p-3">
-        <div className="flex flex-wrap gap-2.5">
+        <div className="grid grid-cols-3 gap-2.5">
           {(Object.keys(BANNER_PATTERNS) as BannerPattern[]).map((k) => {
             const p = BANNER_PATTERNS[k];
-            const active = (block.bannerPattern ?? "honeycomb") === k;
+            const active = currentPattern === k;
             return (
               <button
                 key={k}
@@ -1948,12 +2051,17 @@ function BannerPatternPicker({
                 title={p.label}
                 aria-label={p.label}
                 aria-pressed={active}
-                className={`relative h-11 w-11 shrink-0 rounded-full cursor-pointer bg-neutral-800 transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+                className={`relative h-10 w-full shrink-0 cursor-pointer rounded-md bg-neutral-800 transition-colors duration-150 ${
                   active
-                    ? "scale-105 shadow-lg ring-2 ring-primary ring-offset-2 ring-offset-background"
-                    : "shadow-sm ring-1 ring-black/10 hover:-translate-y-0.5 hover:scale-110 hover:shadow-md hover:ring-black/20"
+                    ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
+                    : "ring-1 ring-border hover:ring-foreground/50"
                 }`}
-                style={{ backgroundImage: bannerPatternUrl(k, false) }}
+                style={{
+                  backgroundImage: bannerPatternUrl(k, false),
+                  backgroundPosition: "center",
+                  backgroundRepeat: "repeat",
+                  backgroundSize: bannerPatternSize(k),
+                }}
               >
                 {active && (
                   <span className="animate-check-pop absolute inset-0 flex items-center justify-center">
@@ -1986,10 +2094,10 @@ function BannerStyleSwatch({
       title={s.label}
       aria-label={s.label}
       aria-pressed={active}
-      className={`relative h-11 w-11 shrink-0 rounded-full cursor-pointer transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] ${s.gradient} ${
+      className={`relative h-11 w-11 shrink-0 rounded-full cursor-pointer transition-colors duration-150 ${s.gradient} ${
         active
-          ? "scale-105 shadow-lg ring-2 ring-primary ring-offset-2 ring-offset-background"
-          : "shadow-sm ring-1 ring-black/10 hover:-translate-y-0.5 hover:scale-110 hover:shadow-md hover:ring-black/20"
+          ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
+          : "ring-1 ring-border hover:ring-foreground/50"
       }`}
     >
       {active && (

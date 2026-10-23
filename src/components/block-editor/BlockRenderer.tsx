@@ -35,7 +35,7 @@ export function BlockRenderer({
   const entry = BLOCK_REGISTRY[block.type];
 
   return (
-    <div className="group animate-slide-up rounded-xl border border-border bg-card/60 p-5 shadow-sm backdrop-blur-sm transition-all duration-200 hover:shadow-md">
+    <div className="group min-w-0 rounded-lg border border-border bg-card p-5 transition-colors duration-150 hover:border-foreground/50 focus-within:border-foreground/50">
       <BlockToolbar
         label={entry?.label ?? block.type}
         collapsed={collapsed}

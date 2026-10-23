@@ -1,19 +1,25 @@
 // One shared canvas + one generic particle sim, config-driven per kind (see
-// particle-kinds.ts) rather than ten hand-built systems. Mirrors
-// CompanionEngine's mount()/destroy() lifecycle shape and rAF-loop-owned-
-// outside-React design, one layer down in scope (no animation/interaction/
-// movement sub-controllers — a particle field doesn't need them).
+// particle-kinds.ts) rather than ten hand-built systems. The rAF loop is owned
+// outside React, with a mount()/destroy() lifecycle.
 import type { ParticleKind, ParticleSettings } from "@/lib/link-store";
-import { PARTICLE_KINDS, type ParticleKindConfig } from "./particle-kinds";
+import {
+  PARTICLE_KINDS,
+  resolveParticleLook,
+  type ParticleKindConfig,
+  type ResolvedParticleLook,
+} from "./particle-kinds";
 
 interface ParticleInstance {
   x: number;
   y: number;
-  size: number;
+  // Per-particle variation only; the live size/speed come from the current
+  // settings every frame, so slider changes affect particles already on
+  // screen instead of waiting for them to respawn.
+  sizeJitter: number;
+  speedJitter: number;
   opacity: number;
   swayPhase: number;
   swaySpeed: number;
-  fallSpeed: number;
 }
 
 const MAX_DT_MS = 100; // clamps the catch-up jump after a backgrounded/throttled tab
@@ -40,6 +46,7 @@ export class ParticleController {
   private sizeMul = 1;
   private opacityMul = 1;
   private color = "";
+  private look: ResolvedParticleLook = { type: "circle", sizeBase: 4 };
 
   private motionQueryHandler = () => {
     this.reducedMotion = this.motionQuery?.matches ?? false;
@@ -92,6 +99,7 @@ export class ParticleController {
     this.sizeMul = settings?.size ?? 1;
     this.opacityMul = (settings?.opacity ?? preset.opacity) / 100;
     this.color = settings?.color || preset.color;
+    this.look = resolveParticleLook(preset, settings);
 
     if (!this.enabled) {
       this.particles = [];
@@ -106,6 +114,17 @@ export class ParticleController {
   private applySize(): void {
     const rect = this.stageEl.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
+    // The stage can be measured before layout settles (first enable, a panel
+    // animating in); keep already-seeded particles spread across the real
+    // size instead of stuck in the stale one.
+    if (this.width > 0 && this.height > 0 && rect.width > 0 && rect.height > 0) {
+      const kx = rect.width / this.width;
+      const ky = rect.height / this.height;
+      for (const p of this.particles) {
+        p.x *= kx;
+        p.y *= ky;
+      }
+    }
     this.width = rect.width;
     this.height = rect.height;
     this.canvas.width = Math.max(1, Math.round(this.width * dpr));
@@ -119,15 +138,15 @@ export class ParticleController {
     );
   }
 
-  private spawn(preset: ParticleKindConfig, y: number): ParticleInstance {
+  private spawn(_preset: ParticleKindConfig, y: number): ParticleInstance {
     return {
       x: Math.random() * Math.max(1, this.width),
       y,
-      size: preset.size * this.sizeMul * (0.7 + Math.random() * 0.6),
+      sizeJitter: 0.7 + Math.random() * 0.6,
+      speedJitter: 0.7 + Math.random() * 0.6,
       opacity: 0.5 + Math.random() * 0.5,
       swayPhase: Math.random() * Math.PI * 2,
       swaySpeed: 0.5 + Math.random() * 0.5,
-      fallSpeed: preset.speed * this.speedMul * (0.7 + Math.random() * 0.6),
     };
   }
 
@@ -144,28 +163,30 @@ export class ParticleController {
     const dt = dtMs / 1000;
     const preset = PARTICLE_KINDS[this.kind];
     for (const p of this.particles) {
+      const size = this.look.sizeBase * this.sizeMul * p.sizeJitter;
+      const fall = preset.speed * this.speedMul * p.speedJitter;
       p.swayPhase += p.swaySpeed * dt;
       if (preset.direction === "down") {
-        p.y += p.fallSpeed * dt;
+        p.y += fall * dt;
         p.x += Math.sin(p.swayPhase) * preset.sway * dt;
-        if (p.y - p.size > this.height) {
-          p.y = -p.size;
+        if (p.y - size > this.height) {
+          p.y = -size;
           p.x = Math.random() * Math.max(1, this.width);
         }
       } else if (preset.direction === "up") {
-        p.y -= p.fallSpeed * dt;
+        p.y -= fall * dt;
         p.x += Math.sin(p.swayPhase) * preset.sway * dt;
-        if (p.y + p.size < 0) {
-          p.y = this.height + p.size;
+        if (p.y + size < 0) {
+          p.y = this.height + size;
           p.x = Math.random() * Math.max(1, this.width);
         }
       } else {
         p.x += Math.cos(p.swayPhase) * preset.sway * dt * 0.4;
-        p.y += Math.sin(p.swayPhase * 0.7) * preset.sway * dt * 0.4 - p.fallSpeed * dt * 0.15;
-        if (p.x < -p.size) p.x = this.width + p.size;
-        if (p.x > this.width + p.size) p.x = -p.size;
-        if (p.y < -p.size) p.y = this.height + p.size;
-        if (p.y > this.height + p.size) p.y = -p.size;
+        p.y += Math.sin(p.swayPhase * 0.7) * preset.sway * dt * 0.4 - fall * dt * 0.15;
+        if (p.x < -size) p.x = this.width + size;
+        if (p.x > this.width + size) p.x = -size;
+        if (p.y < -size) p.y = this.height + size;
+        if (p.y > this.height + size) p.y = -size;
       }
     }
   }
@@ -176,18 +197,23 @@ export class ParticleController {
     ctx.clearRect(0, 0, this.width, this.height);
     if (!this.enabled || this.particles.length === 0) return;
 
-    const preset = PARTICLE_KINDS[this.kind];
+    const look = this.look;
     ctx.fillStyle = this.color;
+    if (look.type === "glyph") {
+      ctx.textBaseline = "middle";
+      ctx.textAlign = "center";
+    }
     for (const p of this.particles) {
+      const size = look.sizeBase * this.sizeMul * p.sizeJitter;
       ctx.globalAlpha = Math.max(0, Math.min(1, p.opacity * this.opacityMul));
-      if (preset.shape === "glyph" && preset.glyph) {
-        ctx.font = `${p.size}px sans-serif`;
-        ctx.textBaseline = "middle";
-        ctx.textAlign = "center";
-        ctx.fillText(preset.glyph, p.x, p.y);
+      if (look.type === "glyph") {
+        ctx.font = `${size}px sans-serif`;
+        ctx.fillText(look.glyph, p.x, p.y);
+      } else if (look.type === "square") {
+        ctx.fillRect(p.x - size / 2, p.y - size / 2, size, size);
       } else {
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size / 2, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, size / 2, 0, Math.PI * 2);
         ctx.fill();
       }
     }

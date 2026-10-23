@@ -89,7 +89,7 @@ export function BlockLibrary({
                         value={blockEntrySearchValue(entry)}
                         disabled={comingSoon}
                         onSelect={() => handleSelect(entry)}
-                        className={`items-stretch rounded-xl border border-border/70 bg-card/40 p-0 aria-selected:border-primary aria-selected:bg-primary/5 aria-selected:shadow-sm ${
+                        className={`items-stretch rounded-lg border border-border/70 bg-card p-0 aria-selected:border-primary aria-selected:bg-primary/5 aria-selected:shadow-sm ${
                           comingSoon ? "cursor-default opacity-50" : "cursor-pointer"
                         }`}
                       >

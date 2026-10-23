@@ -5,6 +5,7 @@ import {
   IMAGE_SHAPES,
   MUSIC_GENRES,
   THEMES,
+  bannerPatternSize,
   bannerPatternUrl,
   isLightHex,
   mailtoHref,
@@ -19,8 +20,9 @@ import {
 } from "@/lib/link-store";
 import { getHeadingFont, loadGoogleFont } from "@/lib/fonts";
 import { useAudioAnalyser } from "@/lib/audio-visualizer";
+import { usePreviewPlayback } from "@/lib/preview-playback";
+import { corsTrackSrc, isOwnTrackUrl } from "@/lib/publish";
 import { AudioVisualizer } from "@/components/AudioVisualizer";
-import { CompanionStage } from "@/components/CompanionStage";
 import { ParticleStage } from "@/components/ParticleStage";
 import { AmbientSoundBed, type AmbientSoundBedHandle } from "@/components/AmbientSoundBed";
 import { Volume2, VolumeX } from "lucide-react";
@@ -141,7 +143,6 @@ export function LinkPreview({ profile, framed = false }: { profile: Profile; fra
     profile.bgType === "color"
       ? `${BANNER_STYLES[profile.bgStyle ?? "dark"].gradient} ${theme.text}`
       : theme.bg;
-  const [musicPlaying, setMusicPlaying] = useState(false);
   const ambientBedRef = useRef<AmbientSoundBedHandle>(null);
 
   useEffect(() => {
@@ -202,7 +203,7 @@ export function LinkPreview({ profile, framed = false }: { profile: Profile; fra
           style={{ background: accentHex, opacity: 0.25 }}
         />
       )}
-      <div data-companion-zone="banner" className="h-28 w-full overflow-hidden">
+      <div className="h-28 w-full overflow-hidden">
         {profile.coverType === "color" ? (
           <div
             className={`h-full w-full ${BANNER_STYLES[profile.coverStyle ?? "dark"].gradient}`}
@@ -215,7 +216,7 @@ export function LinkPreview({ profile, framed = false }: { profile: Profile; fra
       </div>
 
       <div className="px-5 pb-8">
-        <div data-companion-zone="column" className="mx-auto flex max-w-md flex-col gap-5">
+        <div className="mx-auto flex max-w-md flex-col gap-5">
           <div className="flex items-start gap-3">
             {profile.avatar ? (
               <img
@@ -475,7 +476,7 @@ export function LinkPreview({ profile, framed = false }: { profile: Profile; fra
                       />
                       {(b.bannerPattern ?? "honeycomb") !== "none" && (
                         <div
-                          className={`absolute inset-0 opacity-70 ${
+                          className={`absolute inset-0 ${
                             isLight ? "mix-blend-multiply" : "mix-blend-screen"
                           }`}
                           style={{
@@ -483,6 +484,13 @@ export function LinkPreview({ profile, framed = false }: { profile: Profile; fra
                               b.bannerPattern ?? "honeycomb",
                               isLight,
                             ),
+                            backgroundPosition: "center",
+                            backgroundRepeat: "repeat",
+                            backgroundSize: bannerPatternSize(
+                              b.bannerPattern ?? "honeycomb",
+                              b.bannerPatternScale ?? 100,
+                            ),
+                            opacity: (b.bannerPatternOpacity ?? 70) / 100,
                           }}
                         />
                       )}
@@ -527,6 +535,14 @@ export function LinkPreview({ profile, framed = false }: { profile: Profile; fra
 
               if (b.type === "divider") {
                 const style = b.dividerStyle ?? "solid";
+                const dividerOpacity =
+                  Math.max(
+                    0,
+                    Math.min(
+                      100,
+                      b.dividerOpacity ?? (b.dividerColor || style === "icon" ? 100 : 15),
+                    ),
+                  ) / 100;
                 if (style === "icon") {
                   const Icon = DIVIDER_ICONS[b.dividerIcon ?? ""] ?? Circle;
                   return (
@@ -537,7 +553,7 @@ export function LinkPreview({ profile, framed = false }: { profile: Profile; fra
                     >
                       <span
                         className={`grid h-7 w-7 place-items-center ${theme.muted}`}
-                        style={{ color: b.dividerColor || undefined }}
+                        style={{ color: b.dividerColor || undefined, opacity: dividerOpacity }}
                       >
                         <Icon className="h-4 w-4" />
                       </span>
@@ -555,8 +571,10 @@ export function LinkPreview({ profile, framed = false }: { profile: Profile; fra
                             : "border-solid"
                       }`}
                       style={{
+                        width: `${Math.max(25, Math.min(100, b.dividerWidth ?? 100))}%`,
+                        borderTopWidth: `${Math.max(1, Math.min(4, b.dividerThickness ?? 1))}px`,
                         borderColor: b.dividerColor || "currentColor",
-                        opacity: b.dividerColor ? 1 : 0.15,
+                        opacity: dividerOpacity,
                       }}
                     />
                   </div>
@@ -813,10 +831,6 @@ export function LinkPreview({ profile, framed = false }: { profile: Profile; fra
       </div>
 
       {profile.particles?.enabled && <ParticleStage particles={profile.particles} />}
-
-      {profile.companion && (
-        <CompanionStage companion={profile.companion} musicPlaying={musicPlaying} />
-      )}
     </div>
   );
 
@@ -840,7 +854,6 @@ export function LinkPreview({ profile, framed = false }: { profile: Profile; fra
       slug={profile.slug}
       framed={framed}
       ambientBedRef={ambientBedRef}
-      onPlayingChange={setMusicPlaying}
     />
   ) : hasAmbient ? (
     <AmbientOnlyWidget slug={profile.slug} framed={framed} ambientBedRef={ambientBedRef} />
@@ -1075,28 +1088,33 @@ function NowPlayingWidget({
   slug,
   framed,
   ambientBedRef,
-  onPlayingChange,
 }: {
   music: MusicSettings;
   slug: string;
   framed: boolean;
   ambientBedRef: RefObject<AmbientSoundBedHandle | null>;
-  onPlayingChange?: (playing: boolean) => void;
 }) {
   const [playing, setPlaying] = useState(false);
+  // Flips on if the CORS-enabled load fails for any reason, so the track
+  // still plays (without a visualizer) instead of not playing at all.
+  const [corsFailed, setCorsFailed] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const { ensure, analyserRef } = useAudioAnalyser(audioRef);
+  // In the builder, auditioning the track in Background Music drives this
+  // visualizer too (the editor's own player is the one making sound).
+  const trackPreview = usePreviewPlayback();
+  const trackPlaying = framed && trackPreview.playing && !!trackPreview.analyserRef;
   const genre = MUSIC_GENRES[music.genre ?? "lofi"] ?? MUSIC_GENRES.lofi;
   const visualizer = music.visualizer ?? "bars";
   const position = music.visualizerPosition ?? "right";
   // Unset defaults to on — this widget only ever renders once music is
   // already playing (see `hasMusic`), so that matches its original,
   // always-visualizer behavior for profiles saved before this toggle
-  // existed. Explicitly off drops the tap-to-pause button entirely rather
-  // than swapping in a substitute icon — playback then relies solely on
-  // the opt-in autoplay below, same as a page with no visualizer at all
-  // used to work before this widget existed.
+  // existed. Explicitly off hides the visualizer only — playback is
+  // unaffected, since the visualizer is never the play control.
   const showVisualizer = music.visualizerEnabled ?? true;
+  const useCors = isOwnTrackUrl(music.url) && !corsFailed;
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = (music.volume ?? 70) / 100;
@@ -1118,52 +1136,61 @@ function NowPlayingWidget({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [framed, slug]);
 
-  const updatePlaying = (value: boolean) => {
-    setPlaying(value);
-    onPlayingChange?.(value);
-  };
-
-  const toggle = () => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (playing) {
-      audio.pause();
-      ambientBedRef.current?.pauseAll();
-    } else {
-      // Must run in this same click's call stack, alongside audio.play() —
+  // The visualizer itself is decorative and no longer a play/pause control.
+  // Browsers still require a user gesture before audio may start, so the
+  // first tap/click/key anywhere on the page (the phone frame in the
+  // builder) starts playback instead — never a tap on the visualizer.
+  useEffect(() => {
+    const root = wrapRef.current;
+    const target: EventTarget | null = framed ? (root?.parentElement ?? null) : document;
+    if (!target) return;
+    const events = ["click", "touchend", "keydown"] as const;
+    const start = () => {
+      for (const e of events) target.removeEventListener(e, start);
+      const audio = audioRef.current;
+      if (!audio) return;
+      // Must run in this same gesture's call stack, alongside audio.play() —
       // see useAudioAnalyser for why. Ambient layers fan out from the same
       // gesture instead of needing their own separate tap.
       ensure();
       audio.play().catch(() => {});
       ambientBedRef.current?.unlockAll();
       if (!framed) markAudioOptedIn(slug);
-    }
-  };
+    };
+    for (const e of events) target.addEventListener(e, start);
+    return () => {
+      for (const e of events) target.removeEventListener(e, start);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [framed, slug]);
 
   return (
     <div
+      ref={wrapRef}
       className={`${framed ? "absolute" : "fixed"} bottom-4 z-20 ${WIDGET_POSITION_CLASS[position]}`}
     >
       <audio
         ref={audioRef}
-        src={music.url}
+        src={useCors && music.url ? corsTrackSrc(music.url) : music.url}
+        crossOrigin={useCors ? "anonymous" : undefined}
+        onError={() => {
+          if (useCors) setCorsFailed(true);
+        }}
         loop={music.loop ?? true}
         preload="none"
-        onPlay={() => updatePlaying(true)}
-        onPause={() => updatePlaying(false)}
-        onEnded={() => updatePlaying(false)}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => setPlaying(false)}
       />
       {showVisualizer && (
-        <button
-          type="button"
-          onClick={toggle}
-          className="grid cursor-pointer place-items-center rounded-full p-2 transition-transform duration-300 hover:scale-110 active:scale-95"
+        <div
+          aria-hidden
+          className="pointer-events-none grid place-items-center rounded-full p-2"
           style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.45))" }}
-          aria-label={playing ? "Pause background music" : "Play background music"}
         >
           <AudioVisualizer
-            analyserRef={analyserRef}
-            playing={playing}
+            analyserRef={trackPlaying ? trackPreview.analyserRef! : analyserRef}
+            playing={playing || trackPlaying}
             // "off" only exists as a leftover value from before the widget
             // was visualizer-only — there's no icon/label to fall back to
             // anymore, so it now just means "use the default style".
@@ -1177,7 +1204,7 @@ function NowPlayingWidget({
             roundness={music.visualizerRoundness}
             speed={music.visualizerSpeed}
           />
-        </button>
+        </div>
       )}
     </div>
   );
@@ -1231,13 +1258,15 @@ function AmbientOnlyWidget({
 }
 
 // The visualizer, on its own, for a page with Background Music off but
-// MusicSettings.visualizerEnabled on — no track, no play/pause, just
-// AudioVisualizer's own idle/decorative motion (an always-empty analyser
-// ref never has real data to draw, so it never leaves that fallback). Only
-// rendered when neither NowPlayingWidget nor AmbientOnlyWidget already
-// occupies this corner with a real, functional control.
+// MusicSettings.visualizerEnabled on. With no track there is nothing to
+// react to, so it stays in AudioVisualizer's static resting pose — it only
+// moves while music is actually playing (NowPlayingWidget). Only rendered
+// when neither NowPlayingWidget nor AmbientOnlyWidget already occupies this
+// corner with a real, functional control.
 function VisualizerOnlyWidget({ music, framed }: { music: MusicSettings; framed: boolean }) {
-  const analyserRef = useRef<AnalyserNode | null>(null);
+  const fallbackAnalyser = useRef<AnalyserNode | null>(null);
+  const trackPreview = usePreviewPlayback();
+  const trackPlaying = framed && trackPreview.playing && !!trackPreview.analyserRef;
   const visualizer = music.visualizer ?? "bars";
   const position = music.visualizerPosition ?? "right";
 
@@ -1248,8 +1277,8 @@ function VisualizerOnlyWidget({ music, framed }: { music: MusicSettings; framed:
       style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.45))" }}
     >
       <AudioVisualizer
-        analyserRef={analyserRef}
-        playing
+        analyserRef={trackPlaying ? trackPreview.analyserRef! : fallbackAnalyser}
+        playing={trackPlaying}
         style={visualizer === "off" ? "bars" : visualizer}
         size={music.visualizerSize ?? "md"}
         color={music.visualizerColor || "rgba(255,255,255,0.95)"}

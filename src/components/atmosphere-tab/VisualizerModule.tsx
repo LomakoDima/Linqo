@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { SegmentedToggle, ColorField } from "@/components/BlockEditor";
 import { AudioVisualizer } from "@/components/AudioVisualizer";
 import { SectionCard } from "@/components/ui/section-card";
+import { usePreviewPlayback } from "@/lib/preview-playback";
 import {
   MUSIC_VISUALIZER_SIZES,
   MUSIC_VISUALIZER_POSITIONS,
@@ -43,7 +44,11 @@ export function VisualizerModule({
   // either half of that independently: force it on with music off, or
   // force it off while music keeps playing.
   const visualizerOn = music?.visualizerEnabled ?? enabled;
-  const previewAnalyser = useRef<AnalyserNode | null>(null);
+  const fallbackAnalyser = useRef<AnalyserNode | null>(null);
+  // Playing the track in Background Music drives this preview from the real
+  // audio; otherwise it stays on the demo animation below.
+  const trackPreview = usePreviewPlayback();
+  const trackPlaying = trackPreview.playing && !!trackPreview.analyserRef;
   const style = music?.visualizer && music.visualizer !== "off" ? music.visualizer : "bars";
 
   return (
@@ -71,10 +76,14 @@ export function VisualizerModule({
         </div>
       }
     >
-      <div className="flex items-center justify-center rounded-xl border border-border bg-card/60 p-8">
+      <div className="flex items-center justify-center rounded-lg border border-border bg-card p-8">
         <AudioVisualizer
-          analyserRef={previewAnalyser}
-          playing={visualizerOn}
+          analyserRef={trackPlaying ? trackPreview.analyserRef! : fallbackAnalyser}
+          // Reacts to the track while it plays in Background Music; with music
+          // on but nothing playing it shows the demo animation, and with music
+          // off the same resting pose the page will.
+          playing={visualizerOn && (trackPlaying || enabled)}
+          demo={!trackPlaying}
           style={style}
           size={music?.visualizerSize ?? "md"}
           color={music?.visualizerColor || "currentColor"}

@@ -62,8 +62,7 @@ export function SuccessDialog({
       <DialogContent className="sm:max-w-md">
         <DialogTitle className="sr-only">Your page is live</DialogTitle>
         <div className="flex flex-col items-center gap-4 py-4 text-center">
-          <div className="text-4xl">🎉</div>
-          <h2 className="text-xl font-bold">Your page is live!</h2>
+          <h2 className="font-display text-3xl font-medium">Your page is live.</h2>
           <p className="w-full truncate rounded-lg border border-border bg-muted/40 px-4 py-2 font-mono text-sm">
             {shortUrl}
           </p>

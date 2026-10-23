@@ -1,4 +1,4 @@
-import type { ParticleKind } from "@/lib/link-store";
+import type { ParticleKind, ParticleSettings, ParticleShape } from "@/lib/link-store";
 
 // Data-only presets a generic particle sim reads from — mirrors the
 // BLOCK_REGISTRY/MUSIC_GENRES idiom (a closed, in-repo set as a Record, not
@@ -139,3 +139,79 @@ export const PARTICLE_KINDS: Record<ParticleKind, ParticleKindConfig> = {
     opacity: 85,
   },
 };
+
+// Selectable looks, independent of the kind's motion. "default" keeps
+// whatever the kind ships with. Glyph shapes use plain (non-emoji) Unicode
+// symbols so `color` tints them; "emoji" is drawn as-is, in its own colours.
+export const PARTICLE_SHAPES: Record<ParticleShape, { label: string; glyph?: string }> = {
+  default: { label: "Default" },
+  circle: { label: "Circle" },
+  square: { label: "Square" },
+  star: { label: "Star", glyph: "★" },
+  heart: { label: "Heart", glyph: "♥" },
+  sparkle: { label: "Sparkle", glyph: "✦" },
+  emoji: { label: "Emoji" },
+};
+
+export const DEFAULT_PARTICLE_EMOJI = "🌸";
+export const PARTICLE_EMOJI_SUGGESTIONS = [
+  "🌸",
+  "🍂",
+  "❄️",
+  "⭐",
+  "💖",
+  "🫧",
+  "🔥",
+  "🍀",
+  "🦋",
+  "🎵",
+];
+
+// Circles are sized by diameter, glyphs by font-size; a glyph reads about
+// this much larger than a circle of the same nominal size.
+const GLYPH_PER_CIRCLE = 2.5;
+const EMOJI_BOOST = 1.15;
+
+export type ResolvedParticleLook =
+  | { type: "circle" | "square"; sizeBase: number }
+  | { type: "glyph"; glyph: string; sizeBase: number; tint: boolean };
+
+// First one or two characters — enough for an emoji with a variation
+// selector, never a pasted paragraph.
+export function sanitizeEmoji(raw: string | undefined): string {
+  const chars = Array.from((raw ?? "").trim());
+  return chars.slice(0, 2).join("") || DEFAULT_PARTICLE_EMOJI;
+}
+
+// Turns "this kind + the visitor's shape choice" into one drawable look,
+// converting the kind's base size between diameter and font-size units so
+// switching shape keeps roughly the same visual weight.
+export function resolveParticleLook(
+  preset: ParticleKindConfig,
+  settings: Pick<ParticleSettings, "shape" | "emoji"> | undefined,
+): ResolvedParticleLook {
+  const shape = settings?.shape ?? "default";
+  const asDiameter = preset.shape === "circle" ? preset.size : preset.size / GLYPH_PER_CIRCLE;
+  const asFont = preset.shape === "glyph" ? preset.size : preset.size * GLYPH_PER_CIRCLE;
+
+  if (shape === "default") {
+    return preset.shape === "glyph" && preset.glyph
+      ? { type: "glyph", glyph: preset.glyph, sizeBase: preset.size, tint: true }
+      : { type: "circle", sizeBase: preset.size };
+  }
+  if (shape === "circle" || shape === "square") return { type: shape, sizeBase: asDiameter };
+  if (shape === "emoji") {
+    return {
+      type: "glyph",
+      glyph: sanitizeEmoji(settings?.emoji),
+      sizeBase: asFont * EMOJI_BOOST,
+      tint: false,
+    };
+  }
+  return {
+    type: "glyph",
+    glyph: PARTICLE_SHAPES[shape].glyph ?? "●",
+    sizeBase: asFont,
+    tint: true,
+  };
+}

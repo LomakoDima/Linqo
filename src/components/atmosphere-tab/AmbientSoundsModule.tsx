@@ -99,7 +99,7 @@ export function AmbientSoundsModule({
             return (
               <div
                 key={kind}
-                className="space-y-3 rounded-xl border border-border bg-card/60 p-3.5 transition-colors hover:border-muted-foreground/30 hover:bg-card/80"
+                className="space-y-3 rounded-lg border border-border bg-card p-3.5 transition-colors hover:border-muted-foreground/30 hover:bg-muted"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-2.5">

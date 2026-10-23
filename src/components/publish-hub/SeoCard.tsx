@@ -1,29 +1,12 @@
-import { useState } from "react";
-import { Search, AlertTriangle } from "lucide-react";
+import { useId, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MediaLinkPicker } from "@/components/MediaLinkPicker";
-import { SectionCard } from "@/components/ui/section-card";
+import { toast } from "@/components/notifications";
 import { uploadOgImage } from "@/lib/publish";
 import type { Profile } from "@/lib/link-store";
 
-const TITLE_MIN = 15;
-const TITLE_MAX = 60;
-const DESC_MIN = 50;
-const DESC_MAX = 160;
-
-function counterColor(len: number, min: number, max: number): string {
-  if (len === 0) return "text-muted-foreground";
-  if (len < min || len > max) return "text-amber-500";
-  return "text-emerald-600";
-}
-
-// Every field here is a page-wide "how this looks to the outside world"
-// setting — title/description drive both search results and (with no OG
-// image override) the Social Preview card's text. Live counters + threshold
-// hints instead of a submit-time validator, since nothing here ever blocks
-// publishing — they're guidance, not gates.
 export function SeoCard({
   profile,
   updateSeo,
@@ -32,90 +15,72 @@ export function SeoCard({
   updateSeo: (patch: Partial<Profile>) => void;
 }) {
   const [uploading, setUploading] = useState(false);
+  const titleId = useId();
+  const descriptionId = useId();
   const title = profile.seoTitle ?? "";
   const description = profile.seoDescription ?? "";
-  const titleFallback = profile.name || profile.slug;
 
   const handleUpload = async (file: File) => {
     setUploading(true);
     try {
       const { url } = await uploadOgImage(profile.slug, file);
       updateSeo({ ogImage: url, ogImageName: file.name });
+    } catch {
+      toast.error("Couldn't upload that image");
     } finally {
       setUploading(false);
     }
   };
 
   return (
-    <SectionCard
-      icon={Search}
-      title="SEO"
-      description="How your page shows up in search and previews."
-      defaultOpen={false}
-    >
+    <div className="min-w-0 space-y-5">
       <div>
-        <Label className="mb-2 flex items-center justify-between">
-          <span>Title</span>
+        <Label htmlFor={titleId} className="mb-2 flex items-center justify-between gap-2">
+          <span>Link title</span>
           <span
-            className={`text-xs font-medium tabular-nums ${counterColor(title.length, TITLE_MIN, TITLE_MAX)}`}
+            className={`text-xs tabular-nums ${title.length > 60 ? "text-destructive" : "text-muted-foreground"}`}
           >
-            {title.length}/{TITLE_MAX}
+            {title.length}/60
           </span>
         </Label>
         <Input
+          id={titleId}
           value={title}
           onChange={(e) => updateSeo({ seoTitle: e.target.value })}
-          placeholder={titleFallback}
+          placeholder={profile.name || profile.slug}
           maxLength={120}
         />
-        {title.length === 0 ? (
-          <p className="mt-1.5 flex items-center gap-1.5 text-xs text-amber-600">
-            <AlertTriangle className="h-3 w-3 shrink-0" /> Empty — falls back to "{titleFallback}".
-          </p>
-        ) : title.length < TITLE_MIN ? (
+        {title.length > 60 && (
           <p className="mt-1.5 text-xs text-muted-foreground">
-            A bit short — {TITLE_MIN}-{TITLE_MAX} characters reads best in search results.
+            Search results may shorten this title.
           </p>
-        ) : title.length > TITLE_MAX ? (
-          <p className="mt-1.5 text-xs text-muted-foreground">
-            May be truncated in search results past {TITLE_MAX} characters.
-          </p>
-        ) : null}
+        )}
       </div>
-
       <div>
-        <Label className="mb-2 flex items-center justify-between">
+        <Label htmlFor={descriptionId} className="mb-2 flex items-center justify-between gap-2">
           <span>Description</span>
           <span
-            className={`text-xs font-medium tabular-nums ${counterColor(description.length, DESC_MIN, DESC_MAX)}`}
+            className={`text-xs tabular-nums ${description.length > 160 ? "text-destructive" : "text-muted-foreground"}`}
           >
-            {description.length}/{DESC_MAX}
+            {description.length}/160
           </span>
         </Label>
         <Textarea
+          id={descriptionId}
           value={description}
           onChange={(e) => updateSeo({ seoDescription: e.target.value })}
-          placeholder={profile.bio || "A few words about yourself and your project"}
+          placeholder={profile.bio || "A few words about your page…"}
           maxLength={300}
-          rows={3}
+          rows={4}
         />
-        {description.length === 0 ? (
-          <p className="mt-1.5 flex items-center gap-1.5 text-xs text-amber-600">
-            <AlertTriangle className="h-3 w-3 shrink-0" /> Empty — falls back to your bio.
-          </p>
-        ) : description.length < DESC_MIN ? (
+        {description.length > 160 && (
           <p className="mt-1.5 text-xs text-muted-foreground">
-            A bit short — {DESC_MIN}-{DESC_MAX} characters reads best.
+            Previews may shorten this description.
           </p>
-        ) : description.length > DESC_MAX ? (
-          <p className="mt-1.5 text-xs text-muted-foreground">
-            May be truncated in previews past {DESC_MAX} characters.
-          </p>
-        ) : null}
+        )}
       </div>
-
-      <div>
-        <Label className="mb-2 block">OG Image</Label>
+      <div className="space-y-2">
+        <Label className="block">Share image</Label>
         <MediaLinkPicker
           value={profile.ogImage ?? ""}
           displayLabel={profile.ogImageName ?? profile.ogImage ?? ""}
@@ -126,16 +91,10 @@ export function SeoCard({
           kind="image"
           shape="wide"
           uploading={uploading}
-          placeholder="Paste a link to an image you host…"
+          placeholder="Image URL"
         />
-        <p className="mt-1.5 text-xs text-muted-foreground">Recommended: 1200×630px.</p>
-        {!profile.ogImage && (
-          <p className="mt-1.5 flex items-center gap-1.5 text-xs text-amber-600">
-            <AlertTriangle className="h-3 w-3 shrink-0" /> No image set — add one so your link looks
-            great when shared.
-          </p>
-        )}
+        <p className="text-xs text-muted-foreground">1200 × 630 px · Optional</p>
       </div>
-    </SectionCard>
+    </div>
   );
 }

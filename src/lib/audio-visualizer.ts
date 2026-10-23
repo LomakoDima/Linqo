@@ -13,13 +13,12 @@ import { useRef } from "react";
  * Web Audio support, element already claimed elsewhere), the element's
  * native output is untouched and playback keeps working with no visualizer.
  *
- * The <audio> element deliberately has no `crossOrigin` attribute — setting
- * one would require every pasted track URL to come from a CORS-permissive
- * host just to *play at all*, which is worse than losing the visualizer.
- * Without it, playback always works, but a cross-origin track (a pasted
- * URL, as opposed to our own upload, which is same-origin) counts as
- * "tainted" for Web Audio purposes: the analyser silently reads zeros
- * instead of throwing, so the visualizer just idles rather than erroring.
+ * The <audio> element only gets `crossOrigin` for tracks we host ourselves
+ * (see isOwnTrackUrl) — those are served with CORS headers, so the analyser
+ * reads real data. Setting it for a pasted third-party URL would require
+ * that host to be CORS-permissive just to *play at all*, which is worse than
+ * losing the visualizer. Such a track still plays, but counts as "tainted"
+ * for Web Audio: the analyser silently reads zeros and the visualizer rests.
  */
 export function useAudioAnalyser(audioRef: React.RefObject<HTMLAudioElement | null>) {
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -44,14 +43,16 @@ export function useAudioAnalyser(audioRef: React.RefObject<HTMLAudioElement | nu
       const ctx = new AudioContextCtor();
       const source = ctx.createMediaElementSource(audio);
       const analyser = ctx.createAnalyser();
-      // 256 (128 frequency bins) is enough to tell bass from treble — see
-      // AudioVisualizer's log-spaced band bucketing — without being
-      // wasteful for a 32px-wide canvas. Smoothing is fairly light because
-      // AudioVisualizer applies its own attack/decay envelope on top for
-      // musical (fast-rise, slow-fall) motion; leaving all of it to the
-      // analyser would blur beats into mush.
-      analyser.fftSize = 256;
-      analyser.smoothingTimeConstant = 0.55;
+      // 2048 (1024 bins, ~21 Hz each at 44.1 kHz) is what it takes to resolve
+      // a kick drum from a bass line — at 256 a single bin was 172 Hz wide
+      // and all the bass fell into the bin AudioVisualizer skips. Smoothing
+      // is light and the decibel window narrow because AudioVisualizer
+      // applies its own auto-gain and attack/decay envelope on top; heavy
+      // analyser smoothing would blur beats into mush.
+      analyser.fftSize = 2048;
+      analyser.smoothingTimeConstant = 0.4;
+      analyser.minDecibels = -85;
+      analyser.maxDecibels = -25;
       source.connect(analyser);
       analyser.connect(ctx.destination);
       ctx.resume().catch(() => {});

@@ -38,11 +38,11 @@ export interface SingletonActivateContext {
   setActiveTab: (tab: string) => void;
 }
 
-// Music/Visualizer/Ambient/Particles/Companion: page-wide singleton settings
+// Music/Visualizer/Ambient/Particles: page-wide singleton settings
 // that already have a real settings home in the builder's Atmosphere tab.
 // They're discoverable from the same searchable library as flow blocks, but
 // selecting one never touches `blocks[]` — it just switches to that tab.
-// See MusicSettings/AmbientSettings/ParticleSettings/CompanionSettings in
+// See MusicSettings/AmbientSettings/ParticleSettings in
 // link-store.ts.
 export interface SingletonBlockEntry {
   kind: "singleton";

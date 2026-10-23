@@ -1,12 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { ArrowDown, ArrowUp, ChevronUp, Copy, GripVertical, Settings2, Trash2 } from "lucide-react";
 
-// The hover toolbar every block gets: drag handle, move up/down, duplicate,
+// The toolbar every block gets: drag handle, move up/down, duplicate,
 // a collapse/expand toggle (one control, two icons — Settings2 to expand
 // when collapsed, ChevronUp to collapse when already open, since those are
 // the same action from opposite states rather than two separate concepts),
-// and delete. Hidden until the block (or a control inside this toolbar) has
-// focus/hover — BlockRenderer supplies the `group` class this reacts to.
+// and delete. Actions stay visible on both touch and pointer devices.
 export function BlockToolbar({
   label,
   collapsed,
@@ -33,8 +32,8 @@ export function BlockToolbar({
   dragHandleProps?: React.HTMLAttributes<HTMLSpanElement>;
 }) {
   return (
-    <div className="mb-3 flex items-center justify-between">
-      <div className="flex items-center gap-2">
+    <div className="mb-5 flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-center gap-2">
         <span
           {...dragHandleProps}
           className="cursor-grab text-muted-foreground/40 transition-colors hover:text-muted-foreground active:cursor-grabbing"
@@ -42,11 +41,9 @@ export function BlockToolbar({
         >
           <GripVertical className="h-4 w-4" />
         </span>
-        <span className="rounded-lg bg-accent/75 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-accent-foreground">
-          {label}
-        </span>
+        <h3 className="font-display text-xl font-medium leading-tight">{label}</h3>
       </div>
-      <div className="flex items-center gap-1 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100">
+      <div className="flex items-center gap-0.5 self-end text-muted-foreground sm:self-auto">
         <Button
           size="icon"
           variant="ghost"

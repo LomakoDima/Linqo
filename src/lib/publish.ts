@@ -11,6 +11,27 @@ const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://
 
 // Publishing now requires the caller's session cookie — the API rejects (401)
 // an unclaimed session and (403) a slug someone else already owns.
+// True for a track we host ourselves (an upload — see uploadMusicTrack). Those
+// are served with CORS headers, so the audio element can be loaded with
+// crossOrigin and Web Audio is allowed to read real frequency data from it.
+// A pasted third-party URL can't be assumed to allow that.
+export function isOwnTrackUrl(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    return new URL(url, API_URL).origin === new URL(API_URL).origin;
+  } catch {
+    return false;
+  }
+}
+
+// URL actually handed to the <audio> element for a CORS-analysable load. The
+// query string makes it a different cache entry from the same file fetched
+// earlier by a plain player (e.g. the editor's preview), whose cached copy
+// has no CORS headers and would fail a crossOrigin load.
+export function corsTrackSrc(url: string): string {
+  return `${url}${url.includes("?") ? "&" : "?"}cors=1`;
+}
+
 export async function publishProfile(
   slug: string,
   json: string,

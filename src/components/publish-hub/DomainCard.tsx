@@ -29,7 +29,7 @@ export function DomainCard() {
         {EXAMPLE_DOMAINS.map((domain) => (
           <span
             key={domain}
-            className="rounded-full border border-border bg-card/60 px-3 py-1.5 font-mono text-xs text-muted-foreground"
+            className="rounded-full border border-border bg-card px-3 py-1.5 font-mono text-xs text-muted-foreground"
           >
             {domain}
           </span>

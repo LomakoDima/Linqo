@@ -7,16 +7,12 @@ import { SeoCard } from "./SeoCard";
 import { SocialPreviewCard } from "./SocialPreviewCard";
 import { ShareCard } from "./ShareCard";
 import { QRCodeCard } from "./QRCodeCard";
-import { AnalyticsCard } from "./AnalyticsCard";
-import { DomainCard } from "./DomainCard";
 import { PublishDialog } from "./PublishDialog";
 import { SuccessDialog } from "./SuccessDialog";
-import { ConfettiBurst } from "./ConfettiBurst";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-// The Launch Center — orchestrates the Publish tab's stack of cards, plus
-// the publish flow's two dialogs (PublishDialog's step animation and the
-// SuccessDialog it hands off to). All of this state is ephemeral UI state
-// owned right here — nothing outside the Publish tab needs it.
+// Publication stays in view while secondary tools switch by task. The
+// existing publish flow and success dialog remain owned by this panel.
 export function PublishHub({
   profile,
   update,
@@ -34,12 +30,10 @@ export function PublishHub({
 }) {
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
-  const [showConfetti, setShowConfetti] = useState(false);
 
   const handlePublishSuccess = (updatedAt: string) => {
     onPublishSuccess(updatedAt);
     setPublishDialogOpen(false);
-    setShowConfetti(true);
     setSuccessDialogOpen(true);
   };
 
@@ -52,7 +46,7 @@ export function PublishHub({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-8">
       <YourPageCard
         shortUrl={shortUrl}
         sharePath={sharePath}
@@ -61,12 +55,25 @@ export function PublishHub({
         onPublish={() => setPublishDialogOpen(true)}
         onCopyLink={handleCopyLink}
       />
-      <SeoCard profile={profile} updateSeo={update} />
-      <SocialPreviewCard profile={profile} />
-      <ShareCard profile={profile} shortUrl={shortUrl} />
-      <QRCodeCard slug={profile.slug} shortUrl={shortUrl} />
-      <AnalyticsCard />
-      <DomainCard />
+      <Tabs defaultValue="preview">
+        <TabsList aria-label="Publishing tools">
+          <TabsTrigger value="preview">Link preview</TabsTrigger>
+          <TabsTrigger value="share">Share</TabsTrigger>
+          <TabsTrigger value="qr">QR code</TabsTrigger>
+        </TabsList>
+        <TabsContent value="preview" className="mt-6">
+          <div className="grid items-start gap-6 sm:grid-cols-2">
+            <SeoCard profile={profile} updateSeo={update} />
+            <SocialPreviewCard profile={profile} />
+          </div>
+        </TabsContent>
+        <TabsContent value="share" className="mt-6">
+          <ShareCard profile={profile} shortUrl={shortUrl} />
+        </TabsContent>
+        <TabsContent value="qr" className="mt-6">
+          <QRCodeCard slug={profile.slug} shortUrl={shortUrl} />
+        </TabsContent>
+      </Tabs>
 
       <PublishDialog
         open={publishDialogOpen}
@@ -81,7 +88,6 @@ export function PublishHub({
         shortUrl={shortUrl}
         sharePath={sharePath}
       />
-      {showConfetti && <ConfettiBurst onDone={() => setShowConfetti(false)} />}
     </div>
   );
 }

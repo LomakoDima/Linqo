@@ -27,7 +27,7 @@ function EffectRow({
   hint?: string;
 }) {
   return (
-    <div className="rounded-xl border border-border/60 p-3.5">
+    <div className="rounded-lg border border-border/60 p-3.5">
       <div className="flex items-center gap-3">
         <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
         <div className="min-w-0 flex-1">
@@ -119,7 +119,7 @@ export function EffectsPanel({
         hint={!profile.bgImage ? "Set a background image to see this effect." : undefined}
       />
 
-      <div className="flex items-center gap-3 rounded-xl border border-border/60 p-3.5">
+      <div className="flex items-center gap-3 rounded-lg border border-border/60 p-3.5">
         <Snowflake className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
         <div className="min-w-0 flex-1">
           <div className="text-sm font-medium">Particles</div>

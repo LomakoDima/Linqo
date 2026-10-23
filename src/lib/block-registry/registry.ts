@@ -1,9 +1,8 @@
 // BlockRegistry — the single source of truth for "what blocks exist."
 // `BLOCK_REGISTRY` is a `Record<LinkBlockType, FlowBlockEntry>` rather than a
-// Map+register() (contrast src/lib/companion-engine/registry.ts) so that
+// Map+register() so that
 // adding a new `LinkBlockType` without an entry here is a compile error, not
-// a silent runtime gap — this registry is meant to be exhaustive, the
-// companion one is meant to be open-ended.
+// a silent runtime gap — this registry is meant to be exhaustive.
 //
 // Adding a new flow block type end-to-end: add the type + fields to
 // LinkBlockType/LinkBlock (link-store.ts), add a render case to
@@ -24,7 +23,6 @@ import {
   Mail,
   MapPin,
   Music2,
-  PawPrint,
   Quote,
   SeparatorHorizontal,
   Share2,
@@ -267,16 +265,6 @@ export const SINGLETON_ENTRIES: SingletonBlockEntry[] = [
     icon: Sparkles,
     category: "interactive",
     isConfigured: (p) => !!p.particles?.enabled,
-    activate: ({ setActiveTab }) => setActiveTab("music"),
-  },
-  {
-    kind: "singleton",
-    id: "companion",
-    label: "Companion",
-    description: "An interactive pixel companion that lives on your page.",
-    icon: PawPrint,
-    category: "interactive",
-    isConfigured: (p) => !!p.companion,
     activate: ({ setActiveTab }) => setActiveTab("music"),
   },
 ];

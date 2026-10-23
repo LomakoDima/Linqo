@@ -1,3 +1,5 @@
+import { MUSIC_LIBRARY } from "./music-library";
+
 export type LinkBlockType =
   | "link"
   | "banner"
@@ -69,79 +71,6 @@ export type CoverType = "image" | "color";
 
 export type BannerLayout = "horizontal" | "vertical";
 
-// Every companion (pet) available today. New animals need an entry in the
-// CompanionRegistry (src/lib/companion-engine/registry.ts) — nothing in this
-// file changes beyond adding the id here and to COMPANIONS below.
-export type CompanionId = "bear" | "fox" | "panda" | "rabbit" | "cat" | "dog";
-
-// The corner of the cover/banner a companion calls home — where it spawns,
-// and what it wanders back toward when idle. It's a living NPC now (see
-// src/lib/companion-engine/), not a pinned decoration, so this is a "base",
-// not a fixed slot. Kept as a keyed registry rather than free x/y — same
-// convention as BANNER_STYLES/IMAGE_SHAPES — so future bases (by the avatar,
-// a specific block, ...) are just another entry in COMPANION_HOME_CORNERS.
-export type CompanionHomeCorner =
-  "banner-bottom-right" | "banner-bottom-left" | "banner-top-right" | "banner-top-left";
-
-export type CompanionSize = "sm" | "md" | "lg";
-
-// A personality preset layered on top of CompanionEngine's existing
-// idle-quirk/movement knobs (idleChance, walk speed, wander radius) — see
-// CompanionEngine.setBehavior(). "idle" is defined to reproduce today's
-// exact values (all multipliers 1.0), so it's a guaranteed no-op for every
-// profile saved before this existed.
-export type CompanionBehavior = "idle" | "explorer" | "playful" | "lazy";
-
-export interface CompanionSettings {
-  id: CompanionId;
-  // Undefined behaves as "banner-bottom-right".
-  home?: CompanionHomeCorner;
-  // Undefined behaves as "md".
-  size?: CompanionSize;
-  // Undefined behaves as "idle".
-  behavior?: CompanionBehavior;
-}
-
-export const COMPANION_BEHAVIORS: Record<
-  CompanionBehavior,
-  {
-    label: string;
-    blurb: string;
-    idleChanceMultiplier: number;
-    speedMultiplier: number;
-    wanderRadiusMultiplier: number;
-  }
-> = {
-  idle: {
-    label: "Idle",
-    blurb: "Mostly still — a little breathing, the occasional glance.",
-    idleChanceMultiplier: 1,
-    speedMultiplier: 1,
-    wanderRadiusMultiplier: 1,
-  },
-  explorer: {
-    label: "Explorer",
-    blurb: "Wanders further and more often, always checking the edges.",
-    idleChanceMultiplier: 1.6,
-    speedMultiplier: 1.15,
-    wanderRadiusMultiplier: 1.8,
-  },
-  playful: {
-    label: "Playful",
-    blurb: "Quick, twitchy, and quick to react — rarely sits still for long.",
-    idleChanceMultiplier: 2,
-    speedMultiplier: 1.35,
-    wanderRadiusMultiplier: 1.2,
-  },
-  lazy: {
-    label: "Lazy",
-    blurb: "Content to sit and watch — moves rarely, and never far.",
-    idleChanceMultiplier: 0.45,
-    speedMultiplier: 0.7,
-    wanderRadiusMultiplier: 0.6,
-  },
-};
-
 export type HeadingSize = "sm" | "md" | "lg" | "xl" | "2xl";
 
 export type TextAlign = "left" | "center" | "right";
@@ -183,6 +112,22 @@ export type BannerPattern =
   | "trees"
   | "bolts"
   | "coral";
+
+// These IDs were used by the short-lived generated-image collection. They
+// remain accepted when decoding stored data, but normalize to the refined
+// geometric collection below so saved profiles never render a broken banner.
+export type LegacyBannerPattern =
+  | "topographic"
+  | "isometric"
+  | "orbit"
+  | "waveform"
+  | "diamond-grid"
+  | "constellation"
+  | "circuit"
+  | "prism"
+  | "aurora";
+
+export type StoredBannerPattern = BannerPattern | LegacyBannerPattern;
 
 export type DividerStyle = "solid" | "dashed" | "dotted" | "icon";
 
@@ -259,7 +204,12 @@ export interface LinkBlock {
   bannerCustomColor?: string;
   bannerCustomGradientFrom?: string;
   bannerCustomGradientTo?: string;
-  bannerPattern?: BannerPattern;
+  bannerPattern?: StoredBannerPattern;
+  // 0-100; opacity of the pattern layer itself. Undefined keeps the previous
+  // visual balance at 70% while older saved banners gain the new controls.
+  bannerPatternOpacity?: number;
+  // 50-200; tile scale for the selected pattern. Undefined behaves as 100.
+  bannerPatternScale?: number;
   // 0-100; how opaque the banner's color/pattern/image is over the page
   // background. Undefined behaves as 100 (fully opaque), matching banners
   // created before this field existed.
@@ -310,6 +260,12 @@ export interface LinkBlock {
   dividerStyle?: DividerStyle;
   dividerIcon?: string;
   dividerColor?: string;
+  // Divider line controls. Undefined keeps the original full-width, 1px
+  // appearance for blocks created before these options existed.
+  dividerWidth?: number;
+  dividerThickness?: number;
+  // 0-100 opacity; undefined preserves the theme's original divider contrast.
+  dividerOpacity?: number;
   // "quote" block. Undefined quoteStyle behaves as "plain".
   quoteText?: string;
   quoteAuthor?: string;
@@ -418,9 +374,9 @@ export interface MusicSettings {
   // VisualizerOnlyWidget in LinkPreview.tsx), so a profile saved before
   // this toggle existed renders exactly as before: visualizer on while
   // music plays, off otherwise. An explicit value overrides that in
-  // either direction — true shows a purely decorative, idle-animated
-  // visualizer even with music off; false hides it (falling back to a
-  // plain play/pause glyph) even while music plays.
+  // either direction — true shows the visualizer (static, since it only
+  // moves while music plays) even with music off; false hides it, and the
+  // tap-to-pause button with it, even while music plays.
   visualizerEnabled?: boolean;
   visualizer?: MusicVisualizerStyle;
   visualizerSize?: MusicVisualizerSize;
@@ -443,9 +399,8 @@ export interface MusicSettings {
 
 // The 10 environmental sound categories layerable underneath (or instead
 // of) Background Music, each with independent volume. Unlike MUSIC_GENRES,
-// there is no bundled/curated audio here — this app has never shipped real
-// hosted audio (see MUSIC_GENRES.tracks, always empty) — each layer is a
-// user-supplied upload or URL, same convention as MusicSettings.url.
+// there is no bundled/curated audio here — each layer is a user-supplied
+// upload or URL, same convention as MusicSettings.url.
 export type AmbientSoundKind =
   | "rain"
   | "forest"
@@ -514,9 +469,18 @@ export interface ParticleSettings {
   // 0-100. Undefined uses the kind's own default.
   opacity?: number;
   // Hex/rgba override. Undefined uses the kind's own default (or the
-  // page theme's accent color, per-kind).
+  // page theme's accent color, per-kind). Ignored for "emoji" — emoji carry
+  // their own colours.
   color?: string;
+  // What each particle looks like. Undefined (or "default") keeps the kind's
+  // own look, so profiles saved before this existed render unchanged.
+  shape?: ParticleShape;
+  // The character drawn when shape is "emoji" (first 1-2 characters used).
+  emoji?: string;
 }
+
+export type ParticleShape =
+  "default" | "circle" | "square" | "star" | "heart" | "sparkle" | "emoji";
 
 // Real, working page-wide visual effects (see LinkPreview) — each toggle is
 // independent and narrowly scoped to one overlay or one existing usage site,
@@ -570,8 +534,6 @@ export interface Profile {
   ambient?: AmbientSettings;
   // A decorative effect drifting over the whole page.
   particles?: ParticleSettings;
-  // A pet sticker layered on top of the cover/banner. Undefined means none.
-  companion?: CompanionSettings;
   // Undefined -> falls back to name || slug at render sites (public page
   // <head>, Social Preview card).
   seoTitle?: string;
@@ -1060,42 +1022,6 @@ export const BANNER_STYLES: Record<
   },
 };
 
-// Pet stickers available in the builder today — every file already sitting
-// in public/companions/. Adding a new animal is exactly one row here plus
-// its image in that folder.
-// `portrait` is the one piece of art each animal has today — a single
-// pixel-art pose. The companion engine (src/lib/companion-engine/) bakes a
-// full animated sprite sheet out of it at runtime (see spriteSheetBaker).
-// Swapping in a hand-drawn multi-frame sheet later is just setting
-// `spriteSheet` on that animal's CompanionRegistry entry — this label/portrait
-// pair is only ever consumed by the builder's picker gallery and the baker.
-export const COMPANIONS: Record<CompanionId, { label: string; portrait: string }> = {
-  bear: { label: "Bear", portrait: "/companions/bear.png" },
-  fox: { label: "Fox", portrait: "/companions/fox.png" },
-  panda: { label: "Panda", portrait: "/companions/panda.png" },
-  rabbit: { label: "Rabbit", portrait: "/companions/rabbit.png" },
-  cat: { label: "Cat", portrait: "/companions/cat.png" },
-  dog: { label: "Dog", portrait: "/companions/dog.png" },
-};
-
-// Labels only — the engine resolves a corner id to an actual point on the
-// page at runtime (it depends on the live layout, not anything static enough
-// to put here). See CompanionEngine's home-corner resolution.
-export const COMPANION_HOME_CORNERS: Record<CompanionHomeCorner, { label: string }> = {
-  "banner-bottom-right": { label: "Bottom right" },
-  "banner-bottom-left": { label: "Bottom left" },
-  "banner-top-right": { label: "Top right" },
-  "banner-top-left": { label: "Top left" },
-};
-
-// `px` is the companion's on-page footprint (sprite box side length, in CSS
-// pixels) — the engine sizes its canvas from this directly.
-export const COMPANION_SIZES: Record<CompanionSize, { label: string; px: number }> = {
-  sm: { label: "S", px: 48 },
-  md: { label: "M", px: 64 },
-  lg: { label: "L", px: 84 },
-};
-
 export const HEADING_SIZES: Record<HeadingSize, { label: string; className: string }> = {
   sm: { label: "Small", className: "text-xs" },
   md: { label: "Medium", className: "text-sm" },
@@ -1123,12 +1049,9 @@ export const IMAGE_SHAPES: Record<
   portrait: { label: "Portrait", boxClassName: "aspect-[3/4] rounded-2xl", hasFixedAspect: true },
 };
 
-// A vibe picker first, an optional sample playlist second — there's nowhere
-// for this app to host actual tracks itself (see MusicSettings.url), so
-// `tracks` starts undefined/empty for every genre below. It exists so a
-// deployment that *does* have somewhere to host samples (its own backend,
-// a curated CDN list, whatever) can populate it per genre; GenrePlaylistModal
-// already renders real "Use" rows the moment a genre has any. `image`,
+// A vibe picker first, a sample playlist second. `tracks` are the bundled
+// loops from MUSIC_LIBRARY (static files under public/music, rendered by
+// scripts/music-gen) that GenrePlaylistModal offers per genre. `image`,
 // where set, replaces the gradient+icon+label with an illustrated banner
 // (its own label/blurb already baked into the artwork).
 export const MUSIC_GENRES: Record<
@@ -1149,7 +1072,8 @@ export const MUSIC_GENRES: Record<
     gradient: "bg-[linear-gradient(135deg,#8b5e3c,#3b2a4a)]",
     ring: "ring-1 ring-amber-700/30",
     light: false,
-    image: "/banners/lofi.jpg",
+    image: "/banners/badges/lofi-badge.png",
+    tracks: MUSIC_LIBRARY.lofi,
   },
   chill: {
     label: "Chill",
@@ -1157,7 +1081,8 @@ export const MUSIC_GENRES: Record<
     gradient: "bg-[linear-gradient(135deg,#0ea5e9,#1e293b)]",
     ring: "ring-1 ring-sky-400/30",
     light: false,
-    image: "/banners/chill.jpg",
+    image: "/banners/badges/chill-badge.png",
+    tracks: MUSIC_LIBRARY.chill,
   },
   relax: {
     label: "Relax",
@@ -1165,7 +1090,8 @@ export const MUSIC_GENRES: Record<
     gradient: "bg-[linear-gradient(135deg,#5eead4,#3b82f6)]",
     ring: "ring-1 ring-teal-300/30",
     light: false,
-    image: "/banners/relax.jpg",
+    image: "/banners/badges/relax-badge.png",
+    tracks: MUSIC_LIBRARY.relax,
   },
   focus: {
     label: "Focus",
@@ -1173,7 +1099,8 @@ export const MUSIC_GENRES: Record<
     gradient: "bg-[linear-gradient(135deg,#4338ca,#1e1b4b)]",
     ring: "ring-1 ring-indigo-400/30",
     light: false,
-    image: "/banners/focus.jpg",
+    image: "/banners/badges/focus-badge.png",
+    tracks: MUSIC_LIBRARY.focus,
   },
   jazz: {
     label: "Jazz",
@@ -1181,7 +1108,8 @@ export const MUSIC_GENRES: Record<
     gradient: "bg-[linear-gradient(135deg,#b45309,#450a0a)]",
     ring: "ring-1 ring-amber-600/30",
     light: false,
-    image: "/banners/jazz.jpg",
+    image: "/banners/badges/jazz-badge.png",
+    tracks: MUSIC_LIBRARY.jazz,
   },
   ambient: {
     label: "Ambient",
@@ -1189,7 +1117,8 @@ export const MUSIC_GENRES: Record<
     gradient: "bg-[linear-gradient(135deg,#134e4a,#020617)]",
     ring: "ring-1 ring-teal-500/20",
     light: false,
-    image: "/banners/ambient.jpg",
+    image: "/banners/badges/ambient-badge.png",
+    tracks: MUSIC_LIBRARY.ambient,
   },
   piano: {
     label: "Piano",
@@ -1197,7 +1126,8 @@ export const MUSIC_GENRES: Record<
     gradient: "bg-[linear-gradient(135deg,#e5e7eb,#6b7280)]",
     ring: "ring-1 ring-neutral-900/15",
     light: true,
-    image: "/banners/piano.jpg",
+    image: "/banners/badges/piano-badge.png",
+    tracks: MUSIC_LIBRARY.piano,
   },
   synthwave: {
     label: "Synthwave",
@@ -1205,7 +1135,8 @@ export const MUSIC_GENRES: Record<
     gradient: "bg-[linear-gradient(135deg,#f472b6,#7c3aed)]",
     ring: "ring-1 ring-pink-400/30",
     light: false,
-    image: "/banners/synthwave.jpg",
+    image: "/banners/badges/synthwave-badge.png",
+    tracks: MUSIC_LIBRARY.synthwave,
   },
   acoustic: {
     label: "Acoustic",
@@ -1213,7 +1144,8 @@ export const MUSIC_GENRES: Record<
     gradient: "bg-[linear-gradient(135deg,#f59e0b,#78350f)]",
     ring: "ring-1 ring-orange-500/30",
     light: false,
-    image: "/banners/acoustic.jpg",
+    image: "/banners/badges/acoustic-badge.png",
+    tracks: MUSIC_LIBRARY.acoustic,
   },
   upbeat: {
     label: "Upbeat",
@@ -1221,7 +1153,8 @@ export const MUSIC_GENRES: Record<
     gradient: "bg-[linear-gradient(135deg,#fb923c,#ec4899)]",
     ring: "ring-1 ring-pink-400/30",
     light: false,
-    image: "/banners/upbeat.jpg",
+    image: "/banners/badges/upbeat-badge.png",
+    tracks: MUSIC_LIBRARY.upbeat,
   },
 };
 
@@ -1247,95 +1180,95 @@ export const MUSIC_VISUALIZER_POSITIONS: Record<MusicVisualizerPosition, { label
   right: { label: "Right" },
 };
 
-// Geometric line-art motifs available to every banner color equally — pattern
-// and color are independent choices, not paired presets. Each motif is a bare
-// shape (no stroke color baked in) so `bannerPatternUrl` can tint it to
-// contrast correctly against whichever color it's paired with.
+// Refined geometric motifs for banner backgrounds. The collection keeps the
+// original visual vocabulary, but uses calmer spacing, rounded joins and
+// edge-safe repetition so every tile feels intentional inside a narrow card.
 const PATTERN_SHAPES: Record<
   Exclude<BannerPattern, "none">,
   { label: string; w: number; h: number; inner: string }
 > = {
   honeycomb: {
     label: "Honeycomb",
-    w: 84,
-    h: 96,
+    w: 96,
+    h: 70,
     inner:
-      "<path d='M42 2 l40 23 v46 l-40 23 l-40 -23 v-46 z'/><path d='M42 26 l20 11 v22 l-20 11 l-20 -11 v-22 z'/>",
+      "<path d='M24 1 48 15v26L24 55 0 41V15zM72 1 96 15v26L72 55 48 41V15zM48 15l24 14v26L48 69 24 55V29z'/><path d='M24 15 38 23v10L24 41 10 33V23zM72 15l14 8v10L72 41 58 33V23z' opacity='.55'/>",
   },
   spikes: {
     label: "Spikes",
-    w: 60,
-    h: 40,
+    w: 72,
+    h: 44,
     inner:
-      "<path d='M0 40 L10 20 L20 40'/><path d='M20 40 L30 20 L40 40'/><path d='M40 40 L50 20 L60 40'/><path d='M-10 20 L0 0 L10 20'/><path d='M30 20 L40 0 L50 20'/>",
+      "<path d='M0 43 12 21l12 22 12-22 12 22 12-22 12 22'/><path d='M-12 21 0 0l12 21 12-21 12 21 12-21 12 21 12-21 12 21' opacity='.52'/>",
   },
   dots: {
     label: "Dots",
-    w: 40,
-    h: 40,
+    w: 48,
+    h: 48,
     inner:
-      "<circle cx='6' cy='6' r='2'/><circle cx='20' cy='6' r='2'/><circle cx='34' cy='6' r='2'/><circle cx='13' cy='20' r='2'/><circle cx='27' cy='20' r='2'/><circle cx='6' cy='34' r='2'/><circle cx='20' cy='34' r='2'/><circle cx='34' cy='34' r='2'/>",
+      "<circle cx='6' cy='6' r='1.7'/><circle cx='24' cy='6' r='1.7'/><circle cx='42' cy='6' r='1.7'/><circle cx='15' cy='24' r='1.7'/><circle cx='33' cy='24' r='1.7'/><circle cx='6' cy='42' r='1.7'/><circle cx='24' cy='42' r='1.7'/><circle cx='42' cy='42' r='1.7'/><circle cx='24' cy='24' r='1' opacity='.55'/>",
   },
   stars: {
     label: "Stars",
-    w: 90,
-    h: 90,
+    w: 108,
+    h: 72,
     inner:
-      "<path d='M15 10 L17 16 L23 16 L18 20 L20 26 L15 22 L10 26 L12 20 L7 16 L13 16 Z'/><path d='M65 25 L66 29 L70 29 L67 32 L68 36 L65 33 L62 36 L63 32 L60 29 L64 29 Z'/><path d='M40 55 L42 61 L48 61 L43 65 L45 71 L40 67 L35 71 L37 65 L32 61 L38 61 Z'/><circle cx='75' cy='70' r='1.5'/><circle cx='25' cy='75' r='1.5'/><circle cx='55' cy='15' r='1.5'/>",
+      "<path d='M18 4 20.5 12 29 14.5l-8.5 2.5L18 25l-2.5-8-8.5-2.5 8.5-2.5zM78 18l1.7 5.3 5.3 1.7-5.3 1.7L78 32l-1.7-5.3-5.3-1.7 5.3-1.7zM48 48l2.2 6.8 6.8 2.2-6.8 2.2L48 66l-2.2-6.8-6.8-2.2 6.8-2.2z'/><circle cx='101' cy='52' r='1.4'/><circle cx='54' cy='11' r='1.4'/><circle cx='9' cy='56' r='1.4'/>",
   },
   dunes: {
     label: "Dunes",
-    w: 100,
-    h: 40,
-    inner: "<path d='M0 10 Q25 0 50 10 T100 10'/><path d='M0 25 Q25 15 50 25 T100 25'/>",
+    w: 120,
+    h: 48,
+    inner:
+      "<path d='M0 15C20 2 40 2 60 15s40 13 60 0M0 30c20-13 40-13 60 0s40 13 60 0M0 45c20-13 40-13 60 0s40 13 60 0'/>",
   },
   diamonds: {
     label: "Diamonds",
-    w: 50,
-    h: 50,
+    w: 64,
+    h: 64,
     inner:
-      "<path d='M12 0 L24 12 L12 24 L0 12 Z'/><path d='M37 0 L49 12 L37 24 L25 12 Z'/><path d='M12 25 L24 37 L12 49 L0 37 Z'/><path d='M37 25 L49 37 L37 49 L25 37 Z'/>",
+      "<path d='M16 0 32 16 16 32 0 16zM48 0l16 16-16 16-16-16zM16 32l16 16-16 16L0 48zM48 32l16 16-16 16-16-16z'/><path d='M16 8 24 16l-8 8-8-8zM48 8l8 8-8 8-8-8z' opacity='.48'/>",
   },
   chevron: {
     label: "Chevron",
-    w: 60,
-    h: 30,
+    w: 84,
+    h: 42,
     inner:
-      "<path d='M0 10 L15 0 L30 10 L45 0 L60 10'/><path d='M0 25 L15 15 L30 25 L45 15 L60 25'/>",
+      "<path d='M0 12 21 0l21 12L63 0l21 12M0 33l21-12 21 12 21-12 21 12'/><path d='M-42 12-21 0 0 12M84 12l21-12 21 12M-42 33l21-12 21 12M84 33l21-12 21 12' opacity='.48'/>",
   },
   ripples: {
     label: "Ripples",
-    w: 70,
-    h: 70,
+    w: 96,
+    h: 72,
     inner:
-      "<circle cx='20' cy='20' r='6'/><circle cx='20' cy='20' r='12'/><circle cx='55' cy='45' r='6'/><circle cx='55' cy='45' r='12'/>",
+      "<ellipse cx='24' cy='24' rx='7' ry='5'/><ellipse cx='24' cy='24' rx='15' ry='11'/><ellipse cx='24' cy='24' rx='24' ry='18'/><ellipse cx='72' cy='60' rx='7' ry='5'/><ellipse cx='72' cy='60' rx='15' ry='11'/><ellipse cx='72' cy='60' rx='24' ry='18'/>",
   },
   sparkle: {
     label: "Sparkle",
-    w: 60,
-    h: 60,
+    w: 84,
+    h: 72,
     inner:
-      "<path d='M15 5 L17 13 L25 15 L17 17 L15 25 L13 17 L5 15 L13 13 Z'/><path d='M45 30 L46.5 36 L52 37.5 L46.5 39 L45 45 L43.5 39 L38 37.5 L43.5 36 Z'/>",
+      "<path d='M21 3 24 15l12 3-12 3-3 12-3-12-12-3 12-3zM63 36l2.2 8.8L74 47l-8.8 2.2L63 58l-2.2-8.8L52 47l8.8-2.2z'/><circle cx='53' cy='12' r='1.5'/><circle cx='12' cy='57' r='1.5'/><circle cx='78' cy='16' r='1.2'/>",
   },
   trees: {
     label: "Trees",
-    w: 50,
-    h: 60,
+    w: 72,
+    h: 68,
     inner:
-      "<path d='M10 10 L18 25 L2 25 Z'/><path d='M10 20 L20 38 L0 38 Z'/><path d='M35 5 L42 18 L28 18 Z'/><path d='M35 15 L44 30 L26 30 Z'/>",
+      "<path d='M12 47 23 28h-7L28 7l12 21h-7l11 19zM60 55 68 41h-5l9-15 9 15h-5l8 14zM28 47v12M60 55v8'/>",
   },
   bolts: {
     label: "Bolts",
-    w: 50,
-    h: 70,
-    inner: "<path d='M20 5 L10 30 L20 30 L8 55'/><path d='M40 15 L33 35 L41 35 L30 60'/>",
+    w: 72,
+    h: 72,
+    inner: "<path d='M15 4 5 31h12L7 59l30-37H23zM58 15 49 38h10L50 67l27-38H65z'/>",
   },
   coral: {
     label: "Coral",
-    w: 60,
-    h: 60,
+    w: 88,
+    h: 72,
     inner:
-      "<path d='M15 5 L15 25 M5 15 L25 15'/><path d='M45 30 L45 50 M35 40 L55 40'/><path d='M15 45 L15 55 M10 50 L20 50'/>",
+      "<path d='M18 68V39m0 12L6 40m12 7 13-14m-13-7L9 15m9 11 10-17M62 68V39m0 15 12-12m-12 1-11-12m11-2 9-17m-9 9-10-9'/>",
   },
 };
 
@@ -1349,15 +1282,50 @@ export const BANNER_PATTERNS: Record<BannerPattern, { label: string }> = {
   ) as Record<Exclude<BannerPattern, "none">, { label: string }>),
 };
 
-// Builds the pattern's SVG data URI, tinted dark-on-light or light-on-dark so
-// it stays visible no matter which banner color it's paired with. Returns ""
-// for "none" — a solid color banner with no pattern overlay.
-export function bannerPatternUrl(name: BannerPattern, light: boolean): string {
-  if (name === "none") return "";
-  const shape = PATTERN_SHAPES[name];
-  const color = light ? "%23000000" : "%23ffffff";
-  const opacity = light ? 0.25 : 0.22;
-  return `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='${shape.w}' height='${shape.h}' viewBox='0 0 ${shape.w} ${shape.h}'><g fill='none' stroke='${color}' stroke-opacity='${opacity}' stroke-width='1.3'>${shape.inner}</g></svg>")`;
+const LEGACY_PATTERN_MAP: Record<LegacyBannerPattern, Exclude<BannerPattern, "none">> = {
+  topographic: "dunes",
+  isometric: "diamonds",
+  orbit: "ripples",
+  waveform: "chevron",
+  "diamond-grid": "diamonds",
+  constellation: "stars",
+  circuit: "bolts",
+  prism: "diamonds",
+  aurora: "dunes",
+};
+
+// Normalize both current and short-lived generated-image IDs to the refined
+// geometric collection. This keeps existing saved profiles visually stable.
+export function normalizeBannerPattern(name: string | undefined): BannerPattern {
+  if (name === "none") return "none";
+  if (name && Object.prototype.hasOwnProperty.call(PATTERN_SHAPES, name)) {
+    return name as Exclude<BannerPattern, "none">;
+  }
+  if (name && Object.prototype.hasOwnProperty.call(LEGACY_PATTERN_MAP, name)) {
+    return LEGACY_PATTERN_MAP[name as LegacyBannerPattern];
+  }
+  return "dots";
+}
+
+// Builds a subtle, tinted SVG data URI. The artwork remains geometric and
+// lightweight, but the tuned spacing, joins, and opacity make it feel like a
+// polished texture instead of a debug overlay.
+export function bannerPatternUrl(name: string | undefined, light: boolean): string {
+  const normalized = normalizeBannerPattern(name);
+  if (normalized === "none") return "";
+  const shape = PATTERN_SHAPES[normalized];
+  const color = light ? "#0f172a" : "#ffffff";
+  const opacity = light ? 0.18 : 0.2;
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${shape.w}' height='${shape.h}' viewBox='0 0 ${shape.w} ${shape.h}'><g fill='none' stroke='${color}' stroke-opacity='${opacity}' stroke-width='1.15' stroke-linecap='round' stroke-linejoin='round'>${shape.inner}</g></svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+
+export function bannerPatternSize(name: string | undefined, scale = 100): string {
+  const normalized = normalizeBannerPattern(name);
+  if (normalized === "none") return "auto";
+  const shape = PATTERN_SHAPES[normalized];
+  const factor = Math.max(50, Math.min(200, scale)) / 100;
+  return `${Math.round(shape.w * factor)}px ${Math.round(shape.h * factor)}px`;
 }
 
 // A curated BannerStyle already knows whether it's "light"; a hand-picked
@@ -1407,27 +1375,6 @@ export const defaultProfile: Profile = {
   templateId: "standard",
 };
 
-function normalizeCompanion(raw: unknown): CompanionSettings | undefined {
-  if (!raw || typeof raw !== "object") return undefined;
-  // `position` is what this field was called before companions became a
-  // living NPC instead of a pinned badge — still read here so profiles saved
-  // under the old shape keep their corner instead of resetting to default.
-  const r = raw as Partial<CompanionSettings> & { position?: unknown };
-  if (typeof r.id !== "string" || !(r.id in COMPANIONS)) return undefined;
-  const home = typeof r.home === "string" ? r.home : r.position;
-  return {
-    id: r.id as CompanionId,
-    home:
-      typeof home === "string" && home in COMPANION_HOME_CORNERS
-        ? (home as CompanionHomeCorner)
-        : undefined,
-    size:
-      typeof r.size === "string" && r.size in COMPANION_SIZES
-        ? (r.size as CompanionSize)
-        : undefined,
-  };
-}
-
 export function normalizeProfile(raw: unknown): Profile {
   const r = (raw && typeof raw === "object" ? raw : {}) as Partial<Profile>;
   return {
@@ -1456,7 +1403,6 @@ export function normalizeProfile(raw: unknown): Profile {
       r.particles && typeof r.particles === "object"
         ? (r.particles as ParticleSettings)
         : undefined,
-    companion: normalizeCompanion(r.companion),
     seoTitle: typeof r.seoTitle === "string" ? r.seoTitle : undefined,
     seoDescription: typeof r.seoDescription === "string" ? r.seoDescription : undefined,
     ogImage: typeof r.ogImage === "string" ? r.ogImage : undefined,

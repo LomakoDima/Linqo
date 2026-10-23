@@ -1,13 +1,9 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronDown, type LucideIcon } from "lucide-react";
-import { blockSpring } from "@/lib/block-motion/variants";
 
-// The shared collapsible-card shell used across the builder's dashboard-style
-// tabs (Atmosphere, Publish, ...) — icon, title, one-line description,
-// expand/collapse chevron, soft shadow. Keeping this structural (one
-// component every module reuses) rather than per-module styling is what
-// keeps a tab reading as a set of mini editors instead of one long form.
+// Shared builder shell: the template library's typography, flat surfaces,
+// thin borders and compact radius, with accessible collapsible controls.
 export function SectionCard({
   icon: Icon,
   title,
@@ -33,25 +29,27 @@ export function SectionCard({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const contentId = useId();
 
   return (
     <div
-      className={`overflow-hidden rounded-xl border border-border bg-card transition-opacity duration-150 ${
+      className={`overflow-hidden rounded-lg border border-border bg-card transition-opacity duration-150 ${
         deemphasized ? "opacity-70" : ""
       }`}
     >
-      <div className="flex w-full items-center gap-3 p-4">
+      <div className="flex w-full items-center gap-3 p-5">
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
-          className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
+          aria-controls={contentId}
+          className="flex min-w-0 flex-1 cursor-pointer items-start gap-3 rounded-ui text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          <Icon className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
           <div className="min-w-0 flex-1">
-            <div className="text-[0.9375rem] font-semibold tracking-tight">{title}</div>
+            <h3 className="font-display text-xl font-medium leading-tight">{title}</h3>
             {description && (
-              <p className="mt-0.5 truncate text-xs text-muted-foreground">{description}</p>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{description}</p>
             )}
           </div>
         </button>
@@ -61,7 +59,8 @@ export function SectionCard({
           onClick={() => setOpen((o) => !o)}
           aria-label={open ? "Collapse" : "Expand"}
           aria-expanded={open}
-          className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-ui text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-controls={contentId}
+          className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-ui text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <ChevronDown
             className={`h-4 w-4 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
@@ -72,13 +71,14 @@ export function SectionCard({
         {open && (
           <motion.div
             key="content"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={blockSpring}
+            id={contentId}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.12 }}
             className="overflow-hidden"
           >
-            <div className="space-y-4 border-t border-border/60 p-4 pt-4">
+            <div className="space-y-5 border-t border-border p-5">
               {deemphasized && deemphasizedHint && (
                 <p className="rounded-ui bg-muted px-3 py-2 text-xs text-muted-foreground">
                   {deemphasizedHint}

@@ -3,6 +3,7 @@ import type { Profile } from "@/lib/link-store";
 import { THEMES } from "@/lib/link-store";
 import { ColorField } from "@/components/BlockEditor";
 import { Button } from "@/components/ui/button";
+import { BuilderSectionHeader } from "@/components/BuilderSectionHeader";
 import { ThemeLibrary } from "./ThemeLibrary";
 import { BackgroundSelector } from "./BackgroundSelector";
 import { EffectsPanel } from "./EffectsPanel";
@@ -36,18 +37,12 @@ export function AppearanceHub({
   const theme = THEMES[profile.theme];
 
   return (
-    <div className="space-y-6">
-      <div className="max-w-xl">
-        <p className="eyebrow">Appearance</p>
-        <h2 className="font-display mt-3 text-3xl font-medium leading-tight sm:text-4xl">
-          How your page looks.
-        </h2>
-        <p className="mt-3 text-muted-foreground">
-          Current theme: <span className="font-medium text-foreground">{theme.label}</span>. Changes
-          show in the preview straight away and save in this browser; Publish to update your live
-          page.
-        </p>
-      </div>
+    <div className="space-y-10">
+      <BuilderSectionHeader label="Appearance" title="How your page looks.">
+        Current theme: <span className="font-medium text-foreground">{theme.label}</span>. Changes
+        show in the preview straight away and save in this browser; Publish to update your live
+        page.
+      </BuilderSectionHeader>
 
       <div
         role="group"
@@ -83,7 +78,7 @@ export function AppearanceHub({
 
       {panel === "colour" && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-border bg-card p-4">
+          <div className="rounded-lg border border-border bg-card p-4">
             <ColorField
               label="Accent colour"
               value={profile.accentColor}

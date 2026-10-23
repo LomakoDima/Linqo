@@ -16,13 +16,13 @@ const UPCOMING = [
 // list, without building any of these before they're real.
 export function FutureEffectsPlaceholderCard() {
   return (
-    <div className="rounded-2xl border border-dashed border-border bg-card/30 p-4">
+    <div className="rounded-lg border border-dashed border-border p-5">
       <div className="flex items-center gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent/50 text-accent-foreground">
-          <Sparkle className="h-5 w-5" />
+        <span className="shrink-0 text-muted-foreground">
+          <Sparkle className="h-4 w-4" />
         </span>
         <div>
-          <div className="font-semibold">More on the way</div>
+          <h3 className="font-display text-xl font-medium">More on the way</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
             New atmosphere modules land here as they ship.
           </p>
@@ -32,7 +32,7 @@ export function FutureEffectsPlaceholderCard() {
         {UPCOMING.map((label) => (
           <span
             key={label}
-            className="rounded-full border border-border bg-muted/40 px-2.5 py-1 text-[11px] text-muted-foreground"
+            className="rounded-ui border border-border px-2.5 py-1 text-xs text-muted-foreground"
           >
             {label}
           </span>

@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
-import { QrCode, Download, Copy, Maximize2 } from "lucide-react";
+import { Download, Copy, Maximize2, Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { SectionCard } from "@/components/ui/section-card";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { SegmentedToggle, ColorField } from "@/components/BlockEditor";
 import { toast } from "@/components/notifications";
 import { generateQrPngDataUrl, generateQrSvg, type QrColorOpts } from "@/lib/qr";
@@ -26,6 +25,7 @@ export function QRCodeCard({ slug, shortUrl }: { slug: string; shortUrl: string 
   const [accentColor, setAccentColor] = useState("#f97316");
   const [pngUrl, setPngUrl] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [generationError, setGenerationError] = useState(false);
 
   const colors: QrColorOpts =
     style === "dark"
@@ -36,9 +36,15 @@ export function QRCodeCard({ slug, shortUrl }: { slug: string; shortUrl: string 
 
   useEffect(() => {
     let cancelled = false;
-    generateQrPngDataUrl(shortUrl, { ...colors, width: 512 }).then((url) => {
-      if (!cancelled) setPngUrl(url);
-    });
+    setPngUrl(null);
+    setGenerationError(false);
+    generateQrPngDataUrl(shortUrl, { ...colors, width: 512 })
+      .then((url) => {
+        if (!cancelled) setPngUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setGenerationError(true);
+      });
     return () => {
       cancelled = true;
     };
@@ -69,74 +75,99 @@ export function QRCodeCard({ slug, shortUrl }: { slug: string; shortUrl: string 
   };
 
   return (
-    <SectionCard
-      icon={QrCode}
-      title="QR Code"
-      description="A scannable shortcut to your page — great for print, stickers, and stories."
-      defaultOpen={false}
+    <section
+      aria-label="QR code"
+      className="grid items-start gap-6 sm:grid-cols-[180px_minmax(0,1fr)]"
     >
-      <div className="flex flex-col items-center gap-4 rounded-xl border border-border bg-card/60 p-6">
-        {pngUrl && (
+      <div className="flex justify-center rounded-lg border border-border bg-card p-3">
+        {pngUrl ? (
           <button
             type="button"
             onClick={() => setPreviewOpen(true)}
-            className="group relative cursor-pointer overflow-hidden rounded-xl border border-border"
+            className="group relative cursor-pointer overflow-hidden rounded-ui focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label="Preview QR code"
           >
             <img src={pngUrl} alt="QR code" className="h-40 w-40" />
-            <span className="absolute inset-0 hidden items-center justify-center bg-black/50 group-hover:flex">
-              <Maximize2 className="h-5 w-5 text-white" />
+            <span className="absolute bottom-1 right-1 rounded-ui border border-border bg-card p-1.5 text-foreground">
+              <Maximize2 className="h-3.5 w-3.5" />
             </span>
           </button>
+        ) : (
+          <div
+            className="grid h-40 w-40 place-items-center text-xs text-muted-foreground"
+            role="status"
+          >
+            {generationError ? (
+              "Check your QR color"
+            ) : (
+              <Loader2 aria-label="Generating QR code" className="h-5 w-5 animate-spin" />
+            )}
+          </div>
         )}
       </div>
-
-      <div>
-        <Label className="mb-2.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Style
-        </Label>
-        <SegmentedToggle<QrStyle>
-          value={style}
-          options={[
-            { value: "light", label: "Light" },
-            { value: "dark", label: "Dark" },
-            { value: "accent", label: "Brand" },
-          ]}
-          onChange={setStyle}
-        />
-      </div>
-
-      {style === "accent" && (
+      <div className="min-w-0 space-y-5">
         <div>
           <Label className="mb-2.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Brand color
+            Style
           </Label>
-          <ColorField
-            value={accentColor}
-            onChange={(v) => setAccentColor(v ?? "#f97316")}
-            fallback="#f97316"
+          <SegmentedToggle<QrStyle>
+            value={style}
+            options={[
+              { value: "light", label: "Light" },
+              { value: "dark", label: "Dark" },
+              { value: "accent", label: "Brand" },
+            ]}
+            onChange={setStyle}
           />
         </div>
-      )}
 
-      <div className="grid grid-cols-3 gap-2.5">
-        <Button type="button" variant="outline" onClick={downloadPng}>
-          <Download className="mr-1.5 h-3.5 w-3.5" /> PNG
-        </Button>
-        <Button type="button" variant="outline" onClick={downloadSvg}>
-          <Download className="mr-1.5 h-3.5 w-3.5" /> SVG
-        </Button>
-        <Button type="button" variant="outline" onClick={copyQr}>
-          <Copy className="mr-1.5 h-3.5 w-3.5" /> Copy
-        </Button>
+        {style === "accent" && (
+          <div>
+            <Label className="mb-2.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Brand color
+            </Label>
+            <ColorField
+              value={accentColor}
+              onChange={(v) => setAccentColor(v ?? "#f97316")}
+              fallback="#f97316"
+            />
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!pngUrl}
+            onClick={downloadPng}
+          >
+            <Download className="mr-1.5 h-3.5 w-3.5" /> PNG
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!pngUrl}
+            onClick={downloadSvg}
+          >
+            <Download className="mr-1.5 h-3.5 w-3.5" /> SVG
+          </Button>
+          <Button type="button" variant="outline" size="sm" disabled={!pngUrl} onClick={copyQr}>
+            <Copy className="mr-1.5 h-3.5 w-3.5" /> Copy
+          </Button>
+        </div>
       </div>
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="flex flex-col items-center gap-4">
           <DialogTitle>QR Code</DialogTitle>
+          <DialogDescription className="sr-only">
+            Scan this code to open your page.
+          </DialogDescription>
           {pngUrl && <img src={pngUrl} alt="QR code" className="h-64 w-64" />}
         </DialogContent>
       </Dialog>
-    </SectionCard>
+    </section>
   );
 }

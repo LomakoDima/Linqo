@@ -2,10 +2,10 @@ import { useEffect, useRef } from "react";
 import { AtmosphereEngine } from "@/lib/atmosphere-engine/AtmosphereEngine";
 import type { ParticleSettings } from "@/lib/link-store";
 
-// Mounts one AtmosphereEngine instance covering the page content area — same
-// shape as CompanionStage (mount once, push live prop updates to the
-// running instance rather than remounting, so a running sim's particle
-// positions never reset or flicker on every settings tweak).
+// Mounts one AtmosphereEngine instance covering the page content area — mount
+// once, push live prop updates to the running instance rather than
+// remounting, so a running sim's particle positions never reset or flicker on
+// every settings tweak.
 export function ParticleStage({ particles }: { particles: ParticleSettings | undefined }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<AtmosphereEngine | null>(null);

@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Play, Pause, Volume2, VolumeX } from "lucide-react";
+import { useAudioAnalyser } from "@/lib/audio-visualizer";
+import { setPreviewPlayback } from "@/lib/preview-playback";
+import { corsTrackSrc, isOwnTrackUrl } from "@/lib/publish";
 
 function formatTime(s: number): string {
   if (!Number.isFinite(s) || s < 0) return "0:00";
@@ -22,12 +25,18 @@ export function AudioPreviewPlayer({ src }: { src: string }) {
   const [duration, setDuration] = useState(0);
   const [muted, setMuted] = useState(false);
   const [dragging, setDragging] = useState(false);
+  // Flips on if the CORS-enabled load fails, so the track still plays
+  // (without a visualizer) — same fallback as the page's own player.
+  const [corsFailed, setCorsFailed] = useState(false);
+  const { ensure, analyserRef } = useAudioAnalyser(audioRef);
+  const useCors = isOwnTrackUrl(src) && !corsFailed;
 
   // A new track src means the old playback position is meaningless.
   useEffect(() => {
     setPlaying(false);
     setCurrent(0);
     setDuration(0);
+    setCorsFailed(false);
   }, [src]);
 
   const seek = (clientX: number) => {
@@ -53,11 +62,22 @@ export function AudioPreviewPlayer({ src }: { src: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dragging, duration]);
 
+  // Publish playback so the editor's visualizers react to this track. Cleared
+  // on pause/unmount/track change so they never stay "playing" on a dead audio.
+  useEffect(() => {
+    setPreviewPlayback({ playing, analyserRef: playing ? analyserRef : null });
+    return () => setPreviewPlayback({ playing: false, analyserRef: null });
+  }, [playing, analyserRef]);
+
   const toggle = () => {
     const audio = audioRef.current;
     if (!audio) return;
     if (playing) audio.pause();
-    else audio.play().catch(() => {});
+    else {
+      // Same gesture as play() — see useAudioAnalyser.
+      ensure();
+      audio.play().catch(() => {});
+    }
   };
 
   const progress = duration > 0 ? (current / duration) * 100 : 0;
@@ -66,7 +86,11 @@ export function AudioPreviewPlayer({ src }: { src: string }) {
     <div className="mt-3 flex items-center gap-3 rounded-xl border border-border bg-card/60 px-3 py-2.5">
       <audio
         ref={audioRef}
-        src={src}
+        src={useCors ? corsTrackSrc(src) : src}
+        crossOrigin={useCors ? "anonymous" : undefined}
+        onError={() => {
+          if (useCors) setCorsFailed(true);
+        }}
         preload="metadata"
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}

@@ -1,8 +1,5 @@
-import { motion } from "motion/react";
-import { Copy, ExternalLink, Rocket, CheckCircle2 } from "lucide-react";
+import { Copy, ExternalLink, CheckCircle2, Circle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { blockSpring } from "@/lib/block-motion/variants";
 
 function formatRelativeTime(iso: string): string {
   const then = new Date(iso).getTime();
@@ -13,14 +10,9 @@ function formatRelativeTime(iso: string): string {
   if (diffMin < 60) return `${diffMin}m ago`;
   const diffHr = Math.round(diffMin / 60);
   if (diffHr < 24) return `${diffHr}h ago`;
-  const diffDay = Math.round(diffHr / 24);
-  if (diffDay < 30) return `${diffDay}d ago`;
   return new Date(iso).toLocaleDateString();
 }
 
-// The hero of the Launch Center — always expanded, never collapsible, the
-// one thing every other card supports. Status/URL/actions live here so
-// "am I live, and where" is answerable at a glance without opening anything.
 export function YourPageCard({
   shortUrl,
   sharePath,
@@ -37,68 +29,51 @@ export function YourPageCard({
   onCopyLink: () => void;
 }) {
   const isPublished = lastPublishedAt !== null;
-
   return (
-    <motion.div
-      whileHover={{ y: -2 }}
-      transition={blockSpring}
-      className="overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-card to-card/60 p-6 shadow-md sm:p-8"
-    >
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge
-          variant={isPublished ? "default" : "outline"}
-          className={isPublished ? "gap-1 bg-emerald-600 text-white hover:bg-emerald-600" : "gap-1"}
-        >
-          {isPublished && <CheckCircle2 className="h-3 w-3" />}
-          {isPublished ? "Published" : "Draft"}
-        </Badge>
-        {isPublished && lastPublishedAt && (
-          <span className="text-xs text-muted-foreground">
-            Last updated {formatRelativeTime(lastPublishedAt)}
-          </span>
-        )}
-      </div>
-
-      <h2 className="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">Your Page</h2>
-
-      <div className="mt-2 flex items-center gap-2 rounded-xl border border-border/60 bg-background/60 px-4 py-3">
-        <span className="min-w-0 flex-1 truncate font-mono text-sm text-foreground sm:text-base">
-          {shortUrl}
-        </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="shrink-0 rounded-full"
-          onClick={onCopyLink}
-          aria-label="Copy link"
-        >
-          <Copy className="h-4 w-4" />
-        </Button>
-      </div>
-
-      <div className="mt-5 flex flex-wrap gap-2.5">
-        <Button onClick={onPublish} disabled={publishing} size="lg" className="rounded-full">
-          <Rocket className="mr-2 h-4 w-4" />
+    <section aria-label="Publication" className="space-y-5">
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="font-display text-3xl font-medium leading-tight sm:text-4xl">Publish</h2>
+        <Button onClick={onPublish} disabled={publishing}>
+          {publishing && <Loader2 className="h-4 w-4 animate-spin" />}
           {publishing ? "Publishing…" : isPublished ? "Republish" : "Publish"}
         </Button>
-        <a href={sharePath} target="_blank" rel="noreferrer">
-          <Button type="button" variant="outline" size="lg" className="rounded-full">
-            <ExternalLink className="mr-2 h-4 w-4" />
-            Open Page
-          </Button>
-        </a>
-        <Button
-          type="button"
-          variant="secondary"
-          size="lg"
-          className="rounded-full"
-          onClick={onCopyLink}
-        >
-          <Copy className="mr-2 h-4 w-4" />
-          Copy Link
-        </Button>
       </div>
-    </motion.div>
+      <div className="rounded-lg border border-border bg-card px-4 py-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className="min-w-0 flex-1 truncate text-sm" title={shortUrl}>
+            {shortUrl}
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={onCopyLink}
+            aria-label="Copy page link"
+            title="Copy link"
+          >
+            <Copy className="h-4 w-4" />
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <a href={sharePath} target="_blank" rel="noreferrer">
+              <ExternalLink className="h-4 w-4" /> Preview
+            </a>
+          </Button>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-border pt-3 text-xs text-muted-foreground">
+          {isPublished ? (
+            <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+          ) : (
+            <Circle className="h-3.5 w-3.5" />
+          )}
+          <span className="font-medium text-foreground">{isPublished ? "Published" : "Draft"}</span>
+          {lastPublishedAt ? (
+            <time dateTime={lastPublishedAt}>· Updated {formatRelativeTime(lastPublishedAt)}</time>
+          ) : (
+            <span>· Publish to activate your link</span>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }

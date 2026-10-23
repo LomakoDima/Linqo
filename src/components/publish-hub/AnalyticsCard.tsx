@@ -25,7 +25,7 @@ export function AnalyticsCard() {
         {STATS.map(({ label, icon: Icon }) => (
           <div
             key={label}
-            className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-card/60 p-4 text-center"
+            className="flex flex-col items-center gap-1.5 rounded-lg border border-border bg-card p-4 text-center"
           >
             <Icon className="h-4 w-4 text-muted-foreground" />
             <span className="text-xl font-bold text-muted-foreground/50">—</span>
@@ -35,13 +35,13 @@ export function AnalyticsCard() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-xl border border-border bg-card/60 p-4">
+        <div className="rounded-lg border border-border bg-card p-4">
           <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             <Globe2 className="h-3.5 w-3.5" /> Top Referrers
           </div>
           <p className="text-xs text-muted-foreground/70">No data yet</p>
         </div>
-        <div className="rounded-xl border border-border bg-card/60 p-4">
+        <div className="rounded-lg border border-border bg-card p-4">
           <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             <Globe2 className="h-3.5 w-3.5" /> Countries
           </div>

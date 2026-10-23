@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Check, X, Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -22,8 +22,11 @@ export function UsernameInput({
 }) {
   const [status, setStatus] = useState<Status>("idle");
   const requestIdRef = useRef(0);
+  const inputId = useId();
+  const statusId = useId();
 
   useEffect(() => {
+    const requestId = ++requestIdRef.current;
     if (!slug) {
       setStatus("idle");
       return;
@@ -33,7 +36,6 @@ export function UsernameInput({
       return;
     }
     setStatus("checking");
-    const requestId = ++requestIdRef.current;
     const timer = setTimeout(() => {
       isSlugAvailable(slug, myOwnedSlug).then((available) => {
         if (requestIdRef.current !== requestId) return;
@@ -45,10 +47,15 @@ export function UsernameInput({
 
   return (
     <div>
-      <Label className="mb-2 block">Username</Label>
-      <div className="flex items-center gap-0 rounded-lg border border-input bg-background pl-3 shadow-sm transition-colors focus-within:ring-1 focus-within:ring-ring">
+      <Label htmlFor={inputId} className="mb-2 block">
+        Page address
+      </Label>
+      <div className="flex items-center gap-0 rounded-lg border border-input bg-background pl-3 transition-colors focus-within:ring-1 focus-within:ring-ring">
         <span className="shrink-0 select-none text-sm text-muted-foreground">{APP_DOMAIN}/</span>
         <Input
+          id={inputId}
+          aria-describedby={statusId}
+          aria-invalid={status === "taken"}
           value={slug}
           onChange={(e) => onChange(e.target.value.replace(/[^a-zA-Z0-9_-]/g, "").toLowerCase())}
           className="border-0 px-1.5 shadow-none focus-visible:ring-0"
@@ -58,20 +65,16 @@ export function UsernameInput({
           {status === "checking" && (
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           )}
-          {status === "available" && <Check className="h-4 w-4 text-emerald-600" />}
+          {status === "available" && <Check className="h-4 w-4 text-success" />}
           {status === "taken" && <X className="h-4 w-4 text-destructive" />}
         </span>
       </div>
-      <p className="mt-1.5 text-xs">
+      <p id={statusId} role="status" className="mt-1.5 min-h-4 text-xs">
         {status === "taken" ? (
           <span className="text-destructive">Already taken — try another one.</span>
         ) : status === "available" && slug !== myOwnedSlug ? (
-          <span className="text-emerald-600">Available</span>
-        ) : (
-          <span className="text-muted-foreground">
-            {APP_DOMAIN}/{slug || "yourname"}
-          </span>
-        )}
+          <span className="text-success">Available</span>
+        ) : null}
       </p>
     </div>
   );

@@ -15,11 +15,18 @@ import {
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { ColorField } from "@/components/BlockEditor";
 import { SectionCard } from "@/components/ui/section-card";
-import { PARTICLE_KINDS } from "@/lib/atmosphere-engine/particle-kinds";
-import type { ParticleKind, ParticleSettings } from "@/lib/link-store";
+import {
+  DEFAULT_PARTICLE_EMOJI,
+  PARTICLE_EMOJI_SUGGESTIONS,
+  PARTICLE_KINDS,
+  PARTICLE_SHAPES,
+  sanitizeEmoji,
+} from "@/lib/atmosphere-engine/particle-kinds";
+import type { ParticleKind, ParticleSettings, ParticleShape } from "@/lib/link-store";
 
 const PARTICLE_ICONS: Record<ParticleKind, LucideIcon> = {
   snow: Snowflake,
@@ -35,6 +42,7 @@ const PARTICLE_ICONS: Record<ParticleKind, LucideIcon> = {
 };
 
 const KINDS = Object.keys(PARTICLE_KINDS) as ParticleKind[];
+const SHAPES = Object.keys(PARTICLE_SHAPES) as ParticleShape[];
 
 // A single active decorative effect drifting over the whole page — one
 // generic particle sim, ten config-driven presets (see particle-kinds.ts),
@@ -48,6 +56,8 @@ export function ParticlesModule({
 }) {
   const kind = particles?.kind ?? "snow";
   const preset = PARTICLE_KINDS[kind];
+  const shape = particles?.shape ?? "default";
+  const emoji = particles?.emoji ?? DEFAULT_PARTICLE_EMOJI;
 
   return (
     <SectionCard
@@ -76,7 +86,7 @@ export function ParticlesModule({
                   onClick={() => updateParticles({ kind: k })}
                   title={meta.label}
                   aria-pressed={active}
-                  className={`relative flex cursor-pointer flex-col items-center gap-1.5 rounded-xl p-2 transition-all duration-200 hover:scale-[1.03] active:scale-[0.97] ${
+                  className={`relative flex cursor-pointer flex-col items-center gap-1.5 rounded-lg p-2 transition-colors duration-150 ${
                     active
                       ? "bg-primary/10 ring-2 ring-primary"
                       : "ring-1 ring-border hover:ring-muted-foreground/30"
@@ -172,14 +182,83 @@ export function ParticlesModule({
 
           <div>
             <Label className="mb-2.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Color
+              Shape
             </Label>
-            <ColorField
-              value={particles?.color}
-              onChange={(v) => updateParticles({ color: v })}
-              fallback={preset.color}
-            />
+            <div role="group" aria-label="Particle shape" className="flex flex-wrap gap-1.5">
+              {SHAPES.map((sh) => (
+                <button
+                  key={sh}
+                  type="button"
+                  aria-pressed={shape === sh}
+                  onClick={() =>
+                    updateParticles(
+                      sh === "emoji" && !particles?.emoji
+                        ? { shape: sh, emoji: DEFAULT_PARTICLE_EMOJI }
+                        : { shape: sh },
+                    )
+                  }
+                  className={`h-8 cursor-pointer rounded-ui border px-3 text-xs font-medium transition-colors duration-150 ${
+                    shape === sh
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-border text-muted-foreground hover:border-foreground/50 hover:text-foreground"
+                  }`}
+                >
+                  {PARTICLE_SHAPES[sh].label}
+                </button>
+              ))}
+            </div>
+
+            {shape === "emoji" && (
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={emoji}
+                    onChange={(e) =>
+                      updateParticles({ emoji: Array.from(e.target.value).slice(-2).join("") })
+                    }
+                    onBlur={() => updateParticles({ emoji: sanitizeEmoji(emoji) })}
+                    aria-label="Emoji used for particles"
+                    maxLength={8}
+                    className="w-20 text-center text-lg"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Type or paste any emoji, or pick one.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {PARTICLE_EMOJI_SUGGESTIONS.map((e) => (
+                    <button
+                      key={e}
+                      type="button"
+                      onClick={() => updateParticles({ emoji: e })}
+                      aria-label={`Use ${e}`}
+                      aria-pressed={emoji === e}
+                      className={`grid h-9 w-9 cursor-pointer place-items-center rounded-ui border text-lg transition-colors duration-150 ${
+                        emoji === e
+                          ? "border-foreground"
+                          : "border-border hover:border-foreground/50"
+                      }`}
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
+
+          {shape !== "emoji" && (
+            <div>
+              <Label className="mb-2.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Color
+              </Label>
+              <ColorField
+                value={particles?.color}
+                onChange={(v) => updateParticles({ color: v })}
+                fallback={preset.color}
+              />
+            </div>
+          )}
         </>
       ) : (
         <p className="text-xs text-muted-foreground">
