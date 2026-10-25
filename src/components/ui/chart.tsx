@@ -40,7 +40,7 @@ const ChartContainer = React.forwardRef<
   }
 >(({ id, className, children, config, ...props }, ref) => {
   const uniqueId = React.useId();
-  const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`;
+  const chartId = `chart-${(id || uniqueId).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80)}`;
 
   return (
     <ChartContext.Provider value={{ config }}>
@@ -69,24 +69,28 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
   }
 
   return (
-    <style
-      dangerouslySetInnerHTML={{
-        __html: Object.entries(THEMES)
-          .map(
-            ([theme, prefix]) => `
+    <style>
+      {Object.entries(THEMES)
+        .map(
+          ([theme, prefix]) => `
 ${prefix} [data-chart=${id}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
     const color = itemConfig.theme?.[theme as keyof typeof itemConfig.theme] || itemConfig.color;
-    return color ? `  --color-${key}: ${color};` : null;
+    const safeColor =
+      color &&
+      color.length <= 120 &&
+      /^(?:#[0-9a-f]{3,8}|[a-z]+|var\(--[a-z0-9_-]+\)|(?:hsl|hsla|rgb|rgba|oklch)\((?:[\d.%+,/\s-]+|var\(--[a-z0-9_-]+\))\))$/i.test(
+        color,
+      );
+    return /^[a-zA-Z0-9_-]{1,80}$/.test(key) && safeColor ? `  --color-${key}: ${color};` : null;
   })
   .join("\n")}
 }
 `,
-          )
-          .join("\n"),
-      }}
-    />
+        )
+        .join("\n")}
+    </style>
   );
 };
 

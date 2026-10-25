@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { IMAGE_ACCEPT, AUDIO_ACCEPT, validateBrowserFile } from "@/lib/file-safety";
+import { isSafeContentUrl, safeContentUrl } from "@/lib/content-safety";
 
 const SHAPE_CLASS: Record<"square" | "circle" | "wide", string> = {
   square: "h-14 w-14 rounded-ui",
@@ -45,7 +47,7 @@ export function MediaLinkPicker({
   // (imageFieldDisplay) for images; music passes its own.
   displayLabel?: string;
   onUrlChange: (url: string) => void;
-  onUpload: (file: File) => void;
+  onUpload: (file: File) => void | Promise<void>;
   accept: string;
   uploading?: boolean;
   placeholder?: string;
@@ -62,15 +64,22 @@ export function MediaLinkPicker({
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
+  const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const Icon = KIND_ICON[kind];
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (file) {
-      onUpload(file);
-      setOpen(false);
+      try {
+        setError("");
+        await validateBrowserFile(file, kind);
+        await onUpload(file);
+        setOpen(false);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not upload this file");
+      }
     }
   };
 
@@ -78,6 +87,11 @@ export function MediaLinkPicker({
     e.preventDefault();
     const url = draft.trim();
     if (!url) return;
+    if (!isSafeContentUrl(url, kind)) {
+      setError(`Use a public HTTP(S) ${kind} URL in a supported format`);
+      return;
+    }
+    setError("");
     onUrlChange(url);
     setOpen(false);
   };
@@ -88,6 +102,7 @@ export function MediaLinkPicker({
         open={open}
         onOpenChange={(next) => {
           setOpen(next);
+          setError("");
           if (next) setDraft(value.startsWith("data:") ? "" : value);
         }}
       >
@@ -100,8 +115,12 @@ export function MediaLinkPicker({
             )}
             aria-label="Choose image or paste a link"
           >
-            {thumbnailSrc ? (
-              <img src={thumbnailSrc} alt="" className="h-full w-full object-cover" />
+            {safeContentUrl(thumbnailSrc, "image") ? (
+              <img
+                src={safeContentUrl(thumbnailSrc, "image")}
+                alt=""
+                className="h-full w-full object-cover"
+              />
             ) : emptyFallback ? (
               emptyFallback
             ) : (
@@ -118,7 +137,9 @@ export function MediaLinkPicker({
           <input
             ref={fileInputRef}
             type="file"
-            accept={accept}
+            accept={
+              accept === "image/*" ? IMAGE_ACCEPT : accept === "audio/*" ? AUDIO_ACCEPT : accept
+            }
             className="hidden"
             onChange={handleFile}
           />
@@ -143,6 +164,7 @@ export function MediaLinkPicker({
             <Input
               autoFocus
               value={draft}
+              aria-invalid={!!error}
               onChange={(e) => setDraft(e.target.value)}
               placeholder={placeholder}
               className="h-8.5 text-sm"
@@ -151,6 +173,11 @@ export function MediaLinkPicker({
               Use
             </Button>
           </form>
+          {error && (
+            <p role="alert" className="text-xs text-destructive">
+              {error}
+            </p>
+          )}
           {value && onClear && (
             <button
               type="button"

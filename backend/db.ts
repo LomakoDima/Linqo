@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import { ABUSE_SCHEMA } from "./abuse-schema";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -52,6 +53,8 @@ export async function initDb() {
     );
 
     ALTER TABLE profiles ADD COLUMN IF NOT EXISTS owner_id UUID REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE og_images ADD COLUMN IF NOT EXISTS uploaded_by UUID REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE music_tracks ADD COLUMN IF NOT EXISTS uploaded_by UUID REFERENCES users(id) ON DELETE SET NULL;
 
     -- An OAuth-only account never gets a password_hash.
     ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
@@ -79,4 +82,5 @@ export async function initDb() {
     CREATE INDEX IF NOT EXISTS password_reset_tokens_user_id_idx ON password_reset_tokens(user_id);
     CREATE INDEX IF NOT EXISTS password_reset_tokens_reset_token_idx ON password_reset_tokens(reset_token);
   `);
+  await pool.query(ABUSE_SCHEMA);
 }

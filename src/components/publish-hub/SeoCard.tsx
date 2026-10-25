@@ -25,8 +25,8 @@ export function SeoCard({
     try {
       const { url } = await uploadOgImage(profile.slug, file);
       updateSeo({ ogImage: url, ogImageName: file.name });
-    } catch {
-      toast.error("Couldn't upload that image");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't upload that image");
     } finally {
       setUploading(false);
     }

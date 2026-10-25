@@ -1,15 +1,14 @@
-// Every image ends up base64-embedded straight into the share link, so its
-// encoded size is what the user's phone has to hold in its clipboard. Fixed
-// quality/dimensions can't guarantee a bound — a big enough source photo
-// blows past it regardless. Instead we resize/re-compress in a loop until
-// the output actually fits `maxBytes`, so the link (and the clipboard) never
-// balloons no matter what the user uploads.
-export function fileToResizedDataUrl(
+import { validateBrowserFile } from "./file-safety";
+import { CONTENT_LIMITS } from "./content-safety";
+
+// Bound both the source file and the compressed image embedded in a draft.
+export async function fileToResizedDataUrl(
   file: File,
   maxSize = 320,
   quality = 0.85,
   maxBytes = 60_000,
 ): Promise<string> {
+  await validateBrowserFile(file, "image");
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(reader.error ?? new Error("Could not read file"));
@@ -18,6 +17,14 @@ export function fileToResizedDataUrl(
       img.onerror = () => reject(new Error("Could not decode image"));
       img.onload = () => {
         try {
+          if (
+            !img.width ||
+            !img.height ||
+            img.width > CONTENT_LIMITS.imageDimension ||
+            img.height > CONTENT_LIMITS.imageDimension ||
+            img.width * img.height > CONTENT_LIMITS.imagePixels
+          )
+            throw new Error("Image is too large. Use at most 8192 px per side and 16 megapixels.");
           let size = maxSize;
           let q = quality;
           let dataUrl = renderToDataUrl(img, size, q);
@@ -29,6 +36,8 @@ export function fileToResizedDataUrl(
             }
             dataUrl = renderToDataUrl(img, size, q);
           }
+          if (dataUrl.length > maxBytes)
+            throw new Error("Could not fit this image. Choose a smaller image.");
           resolve(dataUrl);
         } catch (err) {
           reject(err instanceof Error ? err : new Error("Could not resize image"));

@@ -107,6 +107,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function RootShell({ children }: { children: ReactNode }) {
+  const nonce = useRouter().options.ssr?.nonce;
   return (
     <html lang="en">
       <head>
@@ -114,7 +115,7 @@ function RootShell({ children }: { children: ReactNode }) {
         {/* Blocking (non-module, non-async) so the dark class lands on <html>
             before first paint — the alternative (setting it in a React
             effect) would flash the wrong theme on every hard load. */}
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body>
         {children}

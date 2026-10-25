@@ -12,9 +12,8 @@ import {
   Bird,
   type LucideIcon,
 } from "lucide-react";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Slider } from "@/components/ui/slider";
+import { SettingSlider } from "./AtmosphereControls";
 import { MediaLinkPicker } from "@/components/MediaLinkPicker";
 import { SectionCard } from "@/components/ui/section-card";
 import {
@@ -81,81 +80,70 @@ export function AmbientSoundsModule({
     <SectionCard
       icon={CloudRain}
       title="Ambient Sounds"
-      description="Rain, ocean, fireplace, and more — layered under your music."
+      layout="studio"
       defaultOpen={false}
       headerAccessory={
         <Switch
+          aria-label="Enable ambient sounds"
           checked={ambient?.enabled ?? false}
           onCheckedChange={(checked) => updateAmbient({ enabled: checked })}
         />
       }
     >
-      {ambient?.enabled ? (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {KINDS.map((kind) => {
-            const layer = getLayer(ambient, kind);
-            const meta = AMBIENT_SOUNDS[kind];
-            const Icon = AMBIENT_ICONS[kind];
-            return (
-              <div
-                key={kind}
-                className="space-y-3 rounded-lg border border-border bg-card p-3.5 transition-colors hover:border-muted-foreground/30 hover:bg-muted"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-start gap-2.5">
-                    <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-muted">
-                      <Icon className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium leading-tight">{meta.label}</p>
-                      <p className="text-xs text-muted-foreground">{meta.blurb}</p>
-                    </div>
+      <div className="divide-y divide-border">
+        {KINDS.map((kind) => {
+          const layer = getLayer(ambient, kind);
+          const meta = AMBIENT_SOUNDS[kind];
+          const Icon = AMBIENT_ICONS[kind];
+          return (
+            <div key={kind} className="space-y-4 py-4 first:pt-0 last:pb-0">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-start gap-2.5">
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-ui bg-surface">
+                    <Icon className="h-4 w-4 text-muted-foreground" />
                   </div>
-                  <Switch
-                    checked={layer.enabled}
-                    onCheckedChange={(checked) => setLayer(kind, { enabled: checked })}
+                  <div>
+                    <p className="text-sm font-medium leading-tight">{meta.label}</p>
+                    <p className="text-xs text-muted-foreground">{meta.blurb}</p>
+                  </div>
+                </div>
+                <Switch
+                  aria-label={`Enable ${meta.label.toLowerCase()}`}
+                  checked={layer.enabled}
+                  onCheckedChange={(checked) => setLayer(kind, { enabled: checked })}
+                />
+              </div>
+
+              {layer.enabled && (
+                <div className="grid items-start gap-4 @min-[560px]:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+                  <MediaLinkPicker
+                    value={layer.url ?? ""}
+                    displayLabel={layer.urlName ?? layer.url ?? ""}
+                    onUrlChange={(url) => setLayer(kind, { url, urlName: undefined })}
+                    onUpload={(file) => handleUpload(kind, file)}
+                    onClear={() => setLayer(kind, { url: undefined, urlName: undefined })}
+                    accept="audio/*"
+                    kind="audio"
+                    uploading={uploadingKind === kind}
+                    placeholder="Paste a link to an mp3 you host…"
+                  />
+                  <SettingSlider
+                    label={`${meta.label} volume`}
+                    min={0}
+                    max={100}
+                    value={layer.volume ?? 50}
+                    display={`${layer.volume ?? 50}%`}
+                    onChange={(volume) => setLayer(kind, { volume })}
                   />
                 </div>
-
-                {layer.enabled && (
-                  <div className="space-y-2.5 border-t border-border pt-3">
-                    <MediaLinkPicker
-                      value={layer.url ?? ""}
-                      displayLabel={layer.urlName ?? layer.url ?? ""}
-                      onUrlChange={(url) => setLayer(kind, { url, urlName: undefined })}
-                      onUpload={(file) => handleUpload(kind, file)}
-                      onClear={() => setLayer(kind, { url: undefined, urlName: undefined })}
-                      accept="audio/*"
-                      kind="audio"
-                      uploading={uploadingKind === kind}
-                      placeholder="Paste a link to an mp3 you host…"
-                    />
-                    <div>
-                      <Label className="mb-1.5 flex items-center justify-between">
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                          Volume
-                        </span>
-                        <span className="text-[10px] font-medium text-muted-foreground">
-                          {layer.volume ?? 50}%
-                        </span>
-                      </Label>
-                      <Slider
-                        min={0}
-                        max={100}
-                        step={1}
-                        value={[layer.volume ?? 50]}
-                        onValueChange={([v]) => setLayer(kind, { volume: v })}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      ) : (
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {!ambient?.enabled && (
         <p className="text-xs text-muted-foreground">
-          Turn on Ambient Sounds to layer in rain, ocean, fireplace, and more.
+          Hidden on your page. Turn on Ambient Sounds to play your mix.
         </p>
       )}
     </SectionCard>

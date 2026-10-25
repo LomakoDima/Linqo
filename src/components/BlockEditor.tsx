@@ -45,6 +45,8 @@ import {
   type VideoAspect,
 } from "@/lib/link-store";
 import { fileToResizedDataUrl } from "@/lib/image";
+import { CONTENT_LIMITS } from "@/lib/content-safety";
+import { IMAGE_ACCEPT } from "@/lib/file-safety";
 import { withViewTransition } from "@/lib/view-transition";
 import { HeadingFontPicker } from "@/components/HeadingFontPicker";
 import { MediaLinkPicker } from "@/components/MediaLinkPicker";
@@ -128,8 +130,8 @@ export function BlockFieldsEditor({
     try {
       const dataUrl = await fileToResizedDataUrl(file, 960, 0.78, 55_000);
       onChange({ ...block, image: dataUrl, imageName: file.name });
-    } catch {
-      toast.error("Couldn't read that image");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't read that image");
     }
   };
 
@@ -137,21 +139,25 @@ export function BlockFieldsEditor({
     try {
       const dataUrl = await fileToResizedDataUrl(file, 960, 0.78, 55_000);
       onChange({ ...block, image: dataUrl, imageName: file.name });
-    } catch {
-      toast.error("Couldn't read that image");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't read that image");
     }
   };
 
   const handleGalleryFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const existing = block.galleryImages ?? [];
+    if (existing.length + files.length > CONTENT_LIMITS.galleryImages) {
+      toast.error("Use at most 20 gallery images per block");
+      return;
+    }
     const added: NonNullable<LinkBlock["galleryImages"]> = [];
     for (const file of Array.from(files)) {
       try {
         const dataUrl = await fileToResizedDataUrl(file, 960, 0.78, 55_000);
         added.push({ id: uid(), image: dataUrl, imageName: file.name });
-      } catch {
-        toast.error(`Couldn't read "${file.name}"`);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : `Couldn't read "${file.name}"`);
       }
     }
     if (added.length > 0) onChange({ ...block, galleryImages: [...existing, ...added] });
@@ -228,7 +234,7 @@ export function BlockFieldsEditor({
                 onUrlChange={(url) => onChange({ ...block, image: url, imageName: undefined })}
                 onUpload={handleBannerImageFile}
                 onClear={() => onChange({ ...block, image: undefined, imageName: undefined })}
-                accept="image/*"
+                accept={IMAGE_ACCEPT}
                 shape="wide"
               />
             </div>
@@ -543,7 +549,7 @@ export function BlockFieldsEditor({
                 onUrlChange={(url) => onChange({ ...block, image: url, imageName: undefined })}
                 onUpload={handleImageBlockFile}
                 onClear={() => onChange({ ...block, image: undefined, imageName: undefined })}
-                accept="image/*"
+                accept={IMAGE_ACCEPT}
                 shape="wide"
               />
             </div>
@@ -907,7 +913,7 @@ export function BlockFieldsEditor({
                 <Plus className="h-5 w-5" />
                 <input
                   type="file"
-                  accept="image/*"
+                  accept={IMAGE_ACCEPT}
                   multiple
                   className="hidden"
                   onChange={(e) => handleGalleryFiles(e.target.files)}
@@ -1486,7 +1492,7 @@ function TextBlockFields({
   useEffect(() => {
     const el = editableRef.current;
     if (!el) return;
-    el.innerHTML = "";
+    el.replaceChildren();
     for (const run of resolveTextRuns(block)) {
       el.appendChild(buildRunNode(run));
     }
@@ -1497,7 +1503,31 @@ function TextBlockFields({
   function syncFromDom() {
     const el = editableRef.current;
     if (!el) return;
+    if ((el.textContent?.length ?? 0) > CONTENT_LIMITS.text) {
+      el.textContent = el.textContent!.slice(0, CONTENT_LIMITS.text);
+      toast.error("Use at most 10,000 characters per text block");
+    }
     onChange({ ...block, textRuns: domToRuns(el), title: undefined });
+  }
+
+  function pastePlainText(event: React.ClipboardEvent<HTMLDivElement>) {
+    event.preventDefault();
+    const el = editableRef.current;
+    const selection = window.getSelection();
+    if (!el || !selection?.rangeCount) return;
+    const range = selection.getRangeAt(0);
+    if (!el.contains(range.commonAncestorContainer)) return;
+    const remaining = CONTENT_LIMITS.text - (el.textContent?.length ?? 0) + range.toString().length;
+    const node = document.createTextNode(
+      event.clipboardData.getData("text/plain").slice(0, Math.max(0, remaining)),
+    );
+    range.deleteContents();
+    range.insertNode(node);
+    range.setStartAfter(node);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    syncFromDom();
   }
 
   // Tracks the caret/selection via `document`'s own selectionchange event
@@ -1740,6 +1770,20 @@ function TextBlockFields({
           contentEditable
           suppressContentEditableWarning
           onInput={syncFromDom}
+          onPaste={pastePlainText}
+          onDrop={(event) => event.preventDefault()}
+          role="textbox"
+          aria-label="Text block content"
+          aria-multiline="true"
+          onBeforeInput={(event) => {
+            const input = event.nativeEvent as InputEvent;
+            if (
+              input.inputType?.startsWith("insert") &&
+              (editableRef.current?.textContent?.length ?? 0) >= CONTENT_LIMITS.text &&
+              !window.getSelection()?.toString()
+            )
+              event.preventDefault();
+          }}
           data-placeholder="Say something..."
           style={{
             fontFamily: getHeadingFont(block.textFont).family,

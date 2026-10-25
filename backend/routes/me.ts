@@ -1,10 +1,19 @@
 import { Router } from "express";
 import { pool } from "../db";
 import { requireAuth, hashPassword, verifyPassword, SESSION_COOKIE, type AuthUser } from "../auth";
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { contentRateLimit } from "../abuse";
+import {
+  accountNameSchema,
+  accountEmailSchema,
+  onboardingSchema,
+  validNewPassword,
+} from "../../src/lib/account-validation";
 
 export const meRouter = Router();
+meRouter.use(requireAuth);
+meRouter.use((req, res, next) =>
+  req.method === "GET" ? next() : contentRateLimit(req, res, next),
+);
 
 // Separate from /api/profiles/:slug (which is public, keyed by slug, and has
 // no notion of "the current user") — this is the one lookup a signed-in
@@ -28,14 +37,16 @@ meRouter.patch("/", requireAuth, async (req, res) => {
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : undefined;
   const currentPassword = typeof body.currentPassword === "string" ? body.currentPassword : "";
 
-  if (name !== undefined && (!name || name.length > 100)) {
-    res.status(400).json({ error: "Enter your name" });
+  if (name !== undefined && !accountNameSchema.safeParse(name).success) {
+    res
+      .status(400)
+      .json({ error: "Enter a valid name (1–100 characters) that follows the content policy" });
     return;
   }
 
   const emailChanging = email !== undefined && email !== req.user!.email;
   if (emailChanging) {
-    if (!EMAIL_PATTERN.test(email)) {
+    if (!accountEmailSchema.safeParse(email).success) {
       res.status(400).json({ error: "Enter a valid email" });
       return;
     }
@@ -76,8 +87,10 @@ meRouter.patch("/password", requireAuth, async (req, res) => {
   const currentPassword = typeof body.currentPassword === "string" ? body.currentPassword : "";
   const newPassword = typeof body.newPassword === "string" ? body.newPassword : "";
 
-  if (newPassword.length < 8) {
-    res.status(400).json({ error: "Password must be at least 8 characters" });
+  if (!validNewPassword(newPassword)) {
+    res
+      .status(400)
+      .json({ error: "Password must have at least 8 characters and at most 72 UTF-8 bytes" });
     return;
   }
 
@@ -115,11 +128,10 @@ meRouter.delete("/", requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
-// Best-effort personalization data from the post-signup quiz — never
-// blocks anything, so no strict schema validation beyond "is an object".
+// Only the quiz's known choices may be stored.
 meRouter.patch("/onboarding", requireAuth, async (req, res) => {
   const answers = req.body?.answers;
-  if (!answers || typeof answers !== "object" || Array.isArray(answers)) {
+  if (!onboardingSchema.safeParse(answers).success) {
     res.status(400).json({ error: "Invalid answers" });
     return;
   }

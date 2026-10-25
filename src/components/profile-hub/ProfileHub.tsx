@@ -4,6 +4,8 @@ import { BioEditor } from "./BioEditor";
 import { AvatarUploader } from "./AvatarUploader";
 import { CoverSelector } from "./CoverSelector";
 import { CompletionCard } from "./CompletionCard";
+import { profileModerationWarnings } from "@/lib/moderation-warnings";
+import { ContentWarnings } from "@/components/ContentWarnings";
 
 // One editing surface, with the actual profile images above its text fields.
 // Everything here writes through the same `update` shallow-merge setter
@@ -36,6 +38,11 @@ export function ProfileHub({
             <IdentityCard profile={profile} update={update} myOwnedSlug={myOwnedSlug} />
             <BioEditor profile={profile} update={update} />
           </div>
+          <ContentWarnings
+            warnings={profileModerationWarnings(profile).filter(
+              (w) => w.path === "name" || w.path === "bio",
+            )}
+          />
         </div>
       </section>
       <CompletionCard profile={profile} />

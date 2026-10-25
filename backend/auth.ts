@@ -74,6 +74,10 @@ declare global {
 }
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (req.user) {
+    next();
+    return;
+  }
   const token = req.cookies?.[SESSION_COOKIE] as string | undefined;
   const user = await getUserForToken(token);
   if (!user) {

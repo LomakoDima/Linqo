@@ -3,6 +3,8 @@ import { Camera, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/notifications";
 import type { Profile } from "@/lib/link-store";
+import { IMAGE_ACCEPT } from "@/lib/file-safety";
+import { safeContentUrl } from "@/lib/content-safety";
 
 export function AvatarUploader({
   profile,
@@ -62,7 +64,11 @@ export function AvatarUploader({
         }}
       >
         {profile.avatar ? (
-          <img src={profile.avatar} alt="" className="h-full w-full object-cover" />
+          <img
+            src={safeContentUrl(profile.avatar, "image") || undefined}
+            alt=""
+            className="h-full w-full object-cover"
+          />
         ) : profile.name ? (
           profile.name.charAt(0).toUpperCase()
         ) : (
@@ -97,7 +103,7 @@ export function AvatarUploader({
             disabled={uploading}
             aria-label="Remove profile photo"
             title="Remove photo"
-            onClick={() => update({ avatar: undefined, avatarName: undefined })}
+            onClick={() => update({ avatar: "", avatarName: undefined })}
           >
             <Trash2 className="h-4 w-4" />
           </Button>
@@ -106,7 +112,7 @@ export function AvatarUploader({
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept={IMAGE_ACCEPT}
         aria-label="Profile photo file"
         className="hidden"
         onChange={(e) => {

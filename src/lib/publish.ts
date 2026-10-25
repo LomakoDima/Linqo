@@ -1,5 +1,9 @@
 import { normalizeProfile, type Profile } from "@/lib/link-store";
 import { readJsonOrThrow } from "@/lib/http";
+import { CONTENT_LIMITS, validateProfileContent } from "./content-safety";
+import { validateBrowserFile } from "./file-safety";
+import type { ContentWarning } from "./moderation-warnings";
+import { detectProfileSpam } from "./spam-detection";
 
 // Talks to the standalone Express + Postgres API in backend/ — this used to
 // go through Vercel Blob for both profile storage and music files; now it's
@@ -35,14 +39,27 @@ export function corsTrackSrc(url: string): string {
 export async function publishProfile(
   slug: string,
   json: string,
-): Promise<{ ok: true; updatedAt: string }> {
+): Promise<{ ok: true; updatedAt: string; warnings?: ContentWarning[] }> {
+  const checked = validateProfileContent(JSON.parse(json));
+  if (!checked.profile) {
+    const issue = checked.issues[0];
+    throw new Error(`${issue.path}: ${issue.message}`);
+  }
+  const spam = detectProfileSpam(checked.profile);
+  if (spam.length) throw new Error(spam[0].message);
+  if (new TextEncoder().encode(json).length > CONTENT_LIMITS.profileBytes)
+    throw new Error("Profile too large to publish. Use fewer or smaller images.");
   const res = await fetch(`${API_URL}/api/profiles/${encodeURIComponent(slug)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
     body: json,
   });
-  return (await readJsonOrThrow(res)) as { ok: true; updatedAt: string };
+  return (await readJsonOrThrow(res)) as {
+    ok: true;
+    updatedAt: string;
+    warnings?: ContentWarning[];
+  };
 }
 
 // The signed-in user's own saved page, if they've published one before —
@@ -72,8 +89,8 @@ export async function isSlugAvailable(slug: string, myOwnedSlug: string | null):
   try {
     const res = await fetch(`${API_URL}/api/profiles/${encodeURIComponent(slug)}`);
     if (!res.ok) return true;
-    const { profile } = (await res.json()) as { profile: unknown };
-    return profile === null;
+    const { profile, exists } = (await res.json()) as { profile: unknown; exists?: boolean };
+    return exists === undefined ? profile === null : !exists;
   } catch {
     // Unreachable API shouldn't block typing — treat as unknown/available,
     // the real gate is still the server at publish time.
@@ -86,20 +103,20 @@ export async function getPublishedProfile(slug: string): Promise<Profile | null>
     const res = await fetch(`${API_URL}/api/profiles/${encodeURIComponent(slug)}`);
     if (!res.ok) return null;
     const { profile } = (await res.json()) as { profile: unknown };
-    return profile ? normalizeProfile(profile) : null;
+    return profile ? validateProfileContent(profile).profile : null;
   } catch {
-    // Unreachable API (e.g. backend not running) shouldn't crash the public
-    // page — it just falls back to whatever routes/p.$slug.tsx does next
-    // (the URL-fragment or local-draft paths).
+    // An unavailable API never falls back to unvalidated URL data.
     return null;
   }
 }
 
 export async function uploadMusicTrack(slug: string, file: File): Promise<{ url: string }> {
+  await validateBrowserFile(file, "audio");
   const formData = new FormData();
   formData.append("file", file);
   const res = await fetch(`${API_URL}/api/music/${encodeURIComponent(slug)}`, {
     method: "POST",
+    credentials: "include",
     body: formData,
   });
   const data = (await readJsonOrThrow(res)) as { url: string };
@@ -108,10 +125,9 @@ export async function uploadMusicTrack(slug: string, file: File): Promise<{ url:
   return { url: new URL(data.url, API_URL).toString() };
 }
 
-// Unlike uploadMusicTrack, the images route requires auth (see
-// backend/routes/images.ts) — the resulting URL is embedded in a public
-// og:image meta tag, so credentials must travel with the request.
+// Both upload endpoints require the user's session and validate file contents.
 export async function uploadOgImage(slug: string, file: File): Promise<{ url: string }> {
+  await validateBrowserFile(file, "image");
   const formData = new FormData();
   formData.append("file", file);
   const res = await fetch(`${API_URL}/api/images/${encodeURIComponent(slug)}`, {

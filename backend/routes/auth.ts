@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { Router, type Response } from "express";
+import { Router, type Response, type Request } from "express";
 import { pool } from "../db";
 import {
   SESSION_COOKIE,
@@ -20,8 +20,22 @@ import {
   type OAuthProvider,
 } from "../oauth";
 import { sendPasswordResetEmail } from "../email";
+import {
+  accountNameSchema,
+  accountEmailSchema,
+  validNewPassword,
+} from "../../src/lib/account-validation";
+import {
+  authRateLimit,
+  signupRateLimit,
+  signinRateLimit,
+  resetRateLimit,
+  registrationBudget,
+  rateLimit,
+  LIMITS,
+} from "../abuse";
+import { issueRegistrationChallenge, verifyRegistration } from "../registration";
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RESET_CODE_TTL_MS = 10 * 60 * 1000;
 const MAX_RESET_ATTEMPTS = 5;
 
@@ -30,25 +44,40 @@ function frontendUrl(): string {
 }
 
 export const authRouter = Router();
+authRouter.use((req, res, next) =>
+  req.path === "/me" || req.path === "/signout" || req.path === "/registration-challenge"
+    ? next()
+    : authRateLimit(req, res, next),
+);
+authRouter.get(
+  "/registration-challenge",
+  rateLimit("challenge-ip", LIMITS.challenge),
+  issueRegistrationChallenge,
+);
 
-authRouter.post("/signup", async (req, res) => {
+authRouter.post("/signup", signupRateLimit, async (req, res) => {
   const body = req.body ?? {};
   const name = typeof body.name === "string" ? body.name.trim() : "";
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const password = typeof body.password === "string" ? body.password : "";
 
-  if (!name || name.length > 100) {
-    res.status(400).json({ error: "Enter your name" });
+  if (!accountNameSchema.safeParse(name).success) {
+    res
+      .status(400)
+      .json({ error: "Enter a valid name (1–100 characters) that follows the content policy" });
     return;
   }
-  if (!EMAIL_PATTERN.test(email)) {
+  if (!accountEmailSchema.safeParse(email).success) {
     res.status(400).json({ error: "Enter a valid email" });
     return;
   }
-  if (password.length < 8) {
-    res.status(400).json({ error: "Password must be at least 8 characters" });
+  if (!validNewPassword(password)) {
+    res
+      .status(400)
+      .json({ error: "Password must have at least 8 characters and at most 72 UTF-8 bytes" });
     return;
   }
+  await verifyRegistration(req);
 
   const existing = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
   if (existing.rows.length > 0) {
@@ -57,6 +86,7 @@ authRouter.post("/signup", async (req, res) => {
   }
 
   const passwordHash = await hashPassword(password);
+  await registrationBudget(req);
   const result = await pool.query<AuthUser>(
     `INSERT INTO users (name, email, password_hash) VALUES ($1, $2, $3)
      RETURNING id, name, email, (password_hash IS NOT NULL) AS "hasPassword"`,
@@ -69,10 +99,14 @@ authRouter.post("/signup", async (req, res) => {
   res.status(201).json({ user });
 });
 
-authRouter.post("/signin", async (req, res) => {
+authRouter.post("/signin", signinRateLimit, async (req, res) => {
   const body = req.body ?? {};
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const password = typeof body.password === "string" ? body.password : "";
+  if (!accountEmailSchema.safeParse(email).success || password.length > 1024) {
+    res.status(401).json({ error: "Invalid email or password" });
+    return;
+  }
 
   const result = await pool.query<AuthUser & { password_hash: string | null }>(
     "SELECT id, name, email, password_hash FROM users WHERE email = $1",
@@ -107,7 +141,7 @@ authRouter.post("/signout", async (req, res) => {
 
 // --- Password reset ---
 
-authRouter.post("/forgot-password", async (req, res) => {
+authRouter.post("/forgot-password", resetRateLimit, async (req, res) => {
   const body = req.body ?? {};
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
 
@@ -117,7 +151,7 @@ authRouter.post("/forgot-password", async (req, res) => {
   res.json({ ok: true });
 
   try {
-    if (!EMAIL_PATTERN.test(email)) return;
+    if (!accountEmailSchema.safeParse(email).success) return;
     const userResult = await pool.query<{ id: string }>("SELECT id FROM users WHERE email = $1", [
       email,
     ]);
@@ -146,12 +180,16 @@ authRouter.post("/forgot-password", async (req, res) => {
   }
 });
 
-authRouter.post("/verify-reset-code", async (req, res) => {
+authRouter.post("/verify-reset-code", signinRateLimit, async (req, res) => {
   const body = req.body ?? {};
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const code = typeof body.code === "string" ? body.code.trim() : "";
   const invalid = () =>
     res.status(400).json({ error: "Code expired or invalid — request a new one" });
+  if (!accountEmailSchema.safeParse(email).success || !/^\d{6}$/.test(code)) {
+    invalid();
+    return;
+  }
 
   const userResult = await pool.query<{ id: string }>("SELECT id FROM users WHERE email = $1", [
     email,
@@ -179,10 +217,15 @@ authRouter.post("/verify-reset-code", async (req, res) => {
     return;
   }
 
+  const attempt = await pool.query(
+    `UPDATE password_reset_tokens SET attempts=attempts+1 WHERE id=$1 AND attempts<$2 AND verified_at IS NULL AND expires_at>now() RETURNING id`,
+    [row.id, MAX_RESET_ATTEMPTS],
+  );
+  if (!attempt.rows.length) {
+    invalid();
+    return;
+  }
   if (!(await verifyPassword(code, row.code_hash))) {
-    await pool.query("UPDATE password_reset_tokens SET attempts = attempts + 1 WHERE id = $1", [
-      row.id,
-    ]);
     invalid();
     return;
   }
@@ -202,8 +245,14 @@ authRouter.post("/reset-password", async (req, res) => {
   const resetToken = typeof body.resetToken === "string" ? body.resetToken : "";
   const password = typeof body.password === "string" ? body.password : "";
 
-  if (password.length < 8) {
-    res.status(400).json({ error: "Password must be at least 8 characters" });
+  if (!validNewPassword(password)) {
+    res
+      .status(400)
+      .json({ error: "Password must have at least 8 characters and at most 72 UTF-8 bytes" });
+    return;
+  }
+  if (!/^[0-9a-f]{64}$/.test(resetToken)) {
+    res.status(401).json({ error: "That reset link expired — start over" });
     return;
   }
 
@@ -262,7 +311,7 @@ function redirectWithError(res: Response, message: string) {
 // Shared by both providers' callbacks: link to an existing OAuth identity,
 // link to an existing password account with the same email, or create a
 // brand-new user — then start a real session exactly like signup/signin do.
-async function completeOAuthSignIn(provider: OAuthProvider, profile: OAuthProfile) {
+async function completeOAuthSignIn(provider: OAuthProvider, profile: OAuthProfile, req: Request) {
   const linked = await pool.query<AuthUser>(
     `SELECT users.id, users.name, users.email, (users.password_hash IS NOT NULL) AS "hasPassword"
      FROM oauth_accounts
@@ -288,6 +337,7 @@ async function completeOAuthSignIn(provider: OAuthProvider, profile: OAuthProfil
     return { user, isNewUser: false };
   }
 
+  await registrationBudget(req);
   const created = await pool.query<AuthUser>(
     `INSERT INTO users (name, email, password_hash) VALUES ($1, $2, NULL)
      RETURNING id, name, email, (password_hash IS NOT NULL) AS "hasPassword"`,
@@ -341,7 +391,7 @@ authRouter.get("/google/callback", async (req, res) => {
 
   try {
     const profile = await exchangeGoogleCode(code, codeVerifier);
-    const { user, isNewUser } = await completeOAuthSignIn("google", profile);
+    const { user, isNewUser } = await completeOAuthSignIn("google", profile, req);
     const token = await createSession(user.id);
     res.cookie(SESSION_COOKIE, token, sessionCookieOptions());
     res.redirect(`${frontendUrl()}${isNewUser ? "/welcome" : "/build"}`);
@@ -386,7 +436,7 @@ authRouter.get("/github/callback", async (req, res) => {
 
   try {
     const profile = await exchangeGithubCode(code);
-    const { user, isNewUser } = await completeOAuthSignIn("github", profile);
+    const { user, isNewUser } = await completeOAuthSignIn("github", profile, req);
     const token = await createSession(user.id);
     res.cookie(SESSION_COOKIE, token, sessionCookieOptions());
     res.redirect(`${frontendUrl()}${isNewUser ? "/welcome" : "/build"}`);

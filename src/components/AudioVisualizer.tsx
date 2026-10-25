@@ -3,13 +3,18 @@ import type { MusicVisualizerSize, MusicVisualizerStyle } from "@/lib/link-store
 
 const BAR_COUNT = 6;
 const WAVEFORM_BAR_COUNT = 11;
-const CIRCULAR_BAR_COUNT = 12;
+const CIRCULAR_BAR_COUNT = 20;
 const SPECTRUM_BAND_COUNT = 20;
 
 const SIZE_CLASS: Record<MusicVisualizerSize, string> = {
   sm: "h-4 w-9",
   md: "h-5 w-12",
   lg: "h-7 w-16",
+};
+const RADIAL_SIZE_CLASS: Record<MusicVisualizerSize, string> = {
+  sm: "h-6 w-9",
+  md: "h-8 w-12",
+  lg: "h-10 w-16",
 };
 
 // How fast a bar's rendered level chases the raw analyser reading — high
@@ -115,8 +120,8 @@ export function AudioVisualizer({
   // Animation-timing multiplier — idle motion and the attack/decay envelope
   // both scale with it. 1 is today's exact constants.
   speed?: number;
-  // Style previews only (the editor card): no track is involved, so animate a
-  // synthetic loop to show what the style looks like. Never set for a real
+  // Style previews only: animate a synthetic loop while playing, otherwise
+  // freeze a representative sample. Never set for a real
   // player — there, no audio data means no motion, not a made-up one.
   demo?: boolean;
 }) {
@@ -139,8 +144,12 @@ export function AudioVisualizer({
     canvas.width = cssW * dpr;
     canvas.height = cssH * dpr;
     ctx2d.scale(dpr, dpr);
-    ctx2d.fillStyle = color;
-    ctx2d.strokeStyle = color;
+    const setPaint = () => {
+      const paint = color === "currentColor" ? getComputedStyle(canvas).color : color;
+      ctx2d.fillStyle = paint;
+      ctx2d.strokeStyle = paint;
+    };
+    setPaint();
     ctx2d.globalAlpha = Math.max(0, Math.min(100, opacity)) / 100;
 
     const roundedFraction = Math.max(0, Math.min(100, roundness)) / 100;
@@ -158,6 +167,12 @@ export function AudioVisualizer({
     // visualizer feel "alive" on any track instead of only on loud ones.
     let agcPeak = 0.5;
     let freqBuf: Uint8Array<ArrayBuffer> | null = null;
+    let timeBuf: Uint8Array<ArrayBuffer> | null = null;
+    let wavePeak = 0.35;
+    let previousPulseLevel = 0;
+    let lastPulseTime = -Infinity;
+    const ripples: { born: number; strength: number }[] = [];
+    const spectrumPeaks: number[] = [];
     // Slow per-band average, the baseline a "hit" is measured against.
     const bandAvg: number[] = [];
 
@@ -239,64 +254,147 @@ export function AudioVisualizer({
       });
     };
 
+    // Midpoint curves stay inside their control points, including at the
+    // smallest size. Tapering the ends gives the signal a clean silhouette.
     const drawWave = (points: number[]) => {
-      ctx2d.lineWidth = 1.3;
-      ctx2d.beginPath();
-      const step = cssW / (points.length - 1);
-      points.forEach((v, i) => {
-        const y = cssH - v * cssH;
-        if (i === 0) ctx2d.moveTo(0, y);
-        else ctx2d.lineTo(i * step, y);
-      });
-      ctx2d.stroke();
+      const pad = 1.5;
+      const step = (cssW - pad * 2) / (points.length - 1);
+      const midY = cssH / 2;
+      const amplitude = Math.max(1, midY - 2);
+      const trace = (scale: number) => {
+        const coordinates = points.map((value, i) => {
+          const neighbor =
+            points[Math.max(0, i - 1)] * 0.25 +
+            value * 0.5 +
+            points[Math.min(points.length - 1, i + 1)] * 0.25;
+          const taper = Math.pow(Math.sin((i / (points.length - 1)) * Math.PI), 0.65);
+          return { x: pad + i * step, y: midY - (neighbor - 0.5) * 2 * amplitude * taper * scale };
+        });
+        ctx2d.beginPath();
+        ctx2d.moveTo(coordinates[0].x, coordinates[0].y);
+        for (let i = 1; i < coordinates.length - 1; i++) {
+          const p = coordinates[i];
+          const next = coordinates[i + 1];
+          ctx2d.quadraticCurveTo(p.x, p.y, (p.x + next.x) / 2, (p.y + next.y) / 2);
+        }
+        const last = coordinates[coordinates.length - 1];
+        ctx2d.lineTo(last.x, last.y);
+        ctx2d.stroke();
+      };
+      ctx2d.save();
+      ctx2d.lineCap = roundedFraction > 0.5 ? "round" : "butt";
+      ctx2d.lineJoin = "round";
+      ctx2d.lineWidth = 1;
+      ctx2d.globalAlpha *= 0.2;
+      trace(-0.65);
+      ctx2d.restore();
+      ctx2d.save();
+      ctx2d.lineCap = roundedFraction > 0.5 ? "round" : "butt";
+      ctx2d.lineWidth = cssH >= 24 ? 1.7 : 1.4;
+      trace(1);
+      ctx2d.restore();
     };
 
-    const drawPulse = (level: number) => {
-      const r = 1.5 + level * (cssH / 2 - 1.5);
+    const drawPulse = (level: number, t = 0) => {
+      if (t === 0) {
+        ripples.length = 0;
+        lastPulseTime = -Infinity;
+      }
+      const cx = cssW / 2;
+      const cy = cssH / 2;
+      const outerR = Math.min(cssW, cssH) / 2 - 1.5;
+      const ringR = outerR * (0.43 + level * 0.17);
+      if (
+        t > 0 &&
+        (beatPulse > 0.98 || level - previousPulseLevel > 0.055) &&
+        t - lastPulseTime > 220
+      ) {
+        ripples.push({ born: t, strength: 0.5 + level * 0.5 });
+        if (ripples.length > 3) ripples.shift();
+        lastPulseTime = t;
+      }
+      previousPulseLevel = level;
+      const ring = (r: number, alpha: number, width: number) => {
+        ctx2d.save();
+        ctx2d.globalAlpha *= alpha;
+        ctx2d.lineWidth = width;
+        ctx2d.beginPath();
+        ctx2d.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx2d.stroke();
+        ctx2d.restore();
+      };
+      ring(outerR * 0.92, 0.13, 0.8);
+      for (let i = ripples.length - 1; i >= 0; i--) {
+        const progress = (t - ripples[i].born) / 850;
+        if (progress >= 1) {
+          ripples.splice(i, 1);
+          continue;
+        }
+        const eased = 1 - Math.pow(1 - progress, 2);
+        ring(
+          outerR * (0.52 + eased * 0.46),
+          Math.pow(1 - progress, 1.5) * ripples[i].strength * 0.55,
+          1,
+        );
+      }
+      ring(ringR, 0.8, cssH >= 32 ? 1.4 : 1.15);
       ctx2d.beginPath();
-      ctx2d.arc(cssW / 2, cssH / 2, r, 0, Math.PI * 2);
+      ctx2d.arc(cx, cy, Math.max(1.6, outerR * (0.14 + level * 0.08)), 0, Math.PI * 2);
       ctx2d.fill();
     };
 
-    // A ring of radial ticks around the pill's own center — each tick's
-    // length encodes one log-band's level, roundedFraction controls how
-    // pill-shaped vs. needle-thin each tick reads.
+    // Ticks grow outwards, leaving a real open center. Previously their
+    // local rotation pointed them inwards, merging them into a dark dot.
     const drawCircular = (levels: number[]) => {
       const cx = cssW / 2;
       const cy = cssH / 2;
-      const outerR = Math.min(cssW, cssH) / 2;
-      const innerR = outerR * 0.32;
-      const tickW = Math.max(1, ((2 * Math.PI * innerR) / levels.length) * 0.55);
-      const radius = (tickW / 2) * roundedFraction;
+      const outerR = Math.min(cssW, cssH) / 2 - 1.5;
+      const innerR = outerR * 0.49;
+      const tickWidth = cssH >= 32 ? 1.5 : 1.1;
       levels.forEach((v, i) => {
         const angle = (i / levels.length) * Math.PI * 2 - Math.PI / 2;
-        const len = (outerR - innerR) * Math.max(0.12, Math.pow(v, 0.6));
-        const x0 = cx + Math.cos(angle) * innerR;
-        const y0 = cy + Math.sin(angle) * innerR;
+        const adjacent =
+          levels[(i + levels.length - 1) % levels.length] * 0.15 +
+          v * 0.7 +
+          levels[(i + 1) % levels.length] * 0.15;
+        const length = (outerR - innerR) * (0.22 + Math.pow(clamp01(adjacent), 0.7) * 0.78);
         ctx2d.save();
-        ctx2d.translate(x0, y0);
-        ctx2d.rotate(angle + Math.PI / 2);
+        ctx2d.translate(cx + Math.cos(angle) * innerR, cy + Math.sin(angle) * innerR);
+        ctx2d.rotate(angle - Math.PI / 2);
         ctx2d.beginPath();
-        ctx2d.roundRect(-tickW / 2, 0, tickW, len, radius);
+        ctx2d.roundRect(
+          -tickWidth / 2,
+          0,
+          tickWidth,
+          length,
+          Math.min(tickWidth / 2, length / 2) * roundedFraction,
+        );
         ctx2d.fill();
         ctx2d.restore();
       });
     };
 
-    // A denser, filled silhouette — more bands than Bars, joined into one
-    // continuous shape instead of discrete pills, the classic "spectrum
-    // analyzer" look.
+    // Narrow log-frequency columns with slowly falling peak markers. The
+    // gaps keep every band legible instead of filling a jagged polygon.
     const drawSpectrum = (levels: number[]) => {
-      ctx2d.beginPath();
-      ctx2d.moveTo(0, cssH);
-      const step = cssW / (levels.length - 1);
+      const pad = 1;
+      const step = (cssW - pad * 2) / levels.length;
+      const width = step * 0.62;
+      const bottom = cssH - 1;
       levels.forEach((v, i) => {
-        const h = Math.pow(v, 0.6) * cssH;
-        ctx2d.lineTo(i * step, cssH - h);
+        const height = Math.max(1, Math.pow(clamp01(v), 0.8) * (cssH - 3));
+        const x = pad + i * step + (step - width) / 2;
+        spectrumPeaks[i] = Math.max(height, (spectrumPeaks[i] ?? height) - 0.12 * speedMul);
+        ctx2d.beginPath();
+        ctx2d.roundRect(x, bottom - height, width, height, width * 0.5 * roundedFraction);
+        ctx2d.fill();
+        if (spectrumPeaks[i] - height > 2.5) {
+          ctx2d.save();
+          ctx2d.globalAlpha *= 0.4;
+          ctx2d.fillRect(x, Math.max(0.5, bottom - spectrumPeaks[i] - 1.5), width, 0.8);
+          ctx2d.restore();
+        }
       });
-      ctx2d.lineTo(cssW, cssH);
-      ctx2d.closePath();
-      ctx2d.fill();
     };
 
     // Paused state — the visualizer is the widget's only visible affordance
@@ -306,21 +404,29 @@ export function AudioVisualizer({
     const drawResting = () => {
       const REST = 0.16;
       if (style === "pulse") drawPulse(REST);
-      else if (style === "wave") drawWave(Array.from({ length: 12 }, () => 0.5));
+      else if (style === "wave")
+        drawWave(
+          Array.from({ length: 32 }, (_, i) => 0.5 + Math.sin((i / 31) * Math.PI * 4) * 0.2),
+        );
       else if (style === "waveform")
         drawWaveform(Array.from({ length: WAVEFORM_BAR_COUNT }, () => REST));
       else if (style === "circular")
-        drawCircular(Array.from({ length: CIRCULAR_BAR_COUNT }, () => REST));
+        drawCircular(
+          Array.from(
+            { length: CIRCULAR_BAR_COUNT },
+            (_, i) => 0.16 + Math.pow(Math.sin((i * Math.PI) / 10), 2) * 0.22,
+          ),
+        );
       else if (style === "spectrum")
-        drawSpectrum(Array.from({ length: SPECTRUM_BAND_COUNT }, () => REST));
+        drawSpectrum(
+          Array.from(
+            { length: SPECTRUM_BAND_COUNT },
+            (_, i) =>
+              0.08 + Math.pow(Math.sin(((i + 1) / 21) * Math.PI), 2) * (0.17 + (i % 3) * 0.04),
+          ),
+        );
       else drawBars(Array.from({ length: BAR_COUNT }, () => REST));
     };
-
-    if (!playing) {
-      ctx2d.clearRect(0, 0, cssW, cssH);
-      drawResting();
-      return;
-    }
 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -328,11 +434,15 @@ export function AudioVisualizer({
       // Idle fallback — a slow synthetic sine so the pill still reads as
       // "playing" when there's no real (untainted) analyser data to draw.
       if (style === "pulse") {
-        drawPulse(0.35 + 0.25 * Math.sin(t / 400));
+        const phase = (t % 1100) / 1100;
+        drawPulse(0.12 + 0.78 * Math.exp(-Math.pow((phase - 0.12) / 0.12, 2)), t);
       } else if (style === "wave") {
         const levels = Array.from(
-          { length: 12 },
-          (_, i) => 0.35 + 0.25 * Math.sin(t / 400 + i * 0.8),
+          { length: 40 },
+          (_, i) =>
+            0.5 +
+            Math.sin((i / 39) * Math.PI * 4 - t / 650) * (0.24 + 0.15 * Math.sin(t / 900)) +
+            Math.sin((i / 39) * Math.PI * 7 + t / 1050) * 0.08,
         );
         drawWave(levels);
       } else if (style === "waveform") {
@@ -347,14 +457,19 @@ export function AudioVisualizer({
         );
         drawWaveform(levels);
       } else if (style === "circular") {
-        const levels = Array.from({ length: CIRCULAR_BAR_COUNT }, (_, i) =>
-          Math.abs(Math.sin(t / 260 + i * 0.9)),
+        const levels = Array.from(
+          { length: CIRCULAR_BAR_COUNT },
+          (_, i) => 0.15 + Math.pow(0.5 + 0.5 * Math.sin(t / 520 + i * 0.8), 2) * 0.7,
         );
         drawCircular(levels);
       } else if (style === "spectrum") {
-        const levels = Array.from(
-          { length: SPECTRUM_BAND_COUNT },
-          (_, i) => 0.25 + 0.5 * Math.abs(Math.sin(t / 350 + i * 0.5)),
+        const levels = Array.from({ length: SPECTRUM_BAND_COUNT }, (_, i) =>
+          clamp01(
+            (0.4 + 0.6 * Math.exp(-Math.pow((i - 5) / 10, 2))) *
+              (0.42 +
+                0.24 * Math.sin(t / (240 + i * 13) + i * 1.7) +
+                0.2 * Math.sin(t / 510 + i * 0.43)),
+          ),
         );
         drawSpectrum(levels);
       } else {
@@ -368,18 +483,45 @@ export function AudioVisualizer({
     const drawFrame = (rawT: number) => {
       const t = rawT * speedMul;
       ctx2d.clearRect(0, 0, cssW, cssH);
+      if (!playing) {
+        if (demo) drawIdle(0);
+        else drawResting();
+        return;
+      }
       const analyser = analyserRef.current;
       let drewReal = false;
 
       if (analyser) {
         if (style === "wave") {
-          const timeData = new Uint8Array(analyser.fftSize);
+          if (!timeBuf || timeBuf.length !== analyser.fftSize)
+            timeBuf = new Uint8Array(analyser.fftSize);
+          const timeData = timeBuf;
           analyser.getByteTimeDomainData(timeData);
           if (hasSignal(timeData, 128)) {
-            // 2048 samples is far more than a 48px-wide line can show.
-            const POINTS = 64;
-            const stride = Math.floor(timeData.length / POINTS);
-            drawWave(Array.from({ length: POINTS }, (_, i) => timeData[i * stride] / 255));
+            // Start at a rising zero crossing to reduce sideways phase
+            // jitter. Average neighboring samples before fitting curves.
+            const POINTS = 40;
+            const span = Math.floor(timeData.length / 2);
+            let start = Math.floor(timeData.length / 4);
+            for (let i = start; i < span; i++) {
+              if (timeData[i] <= 128 && timeData[i + 1] > 128) {
+                start = i;
+                break;
+              }
+            }
+            const samples = Array.from({ length: POINTS }, (_, i) => {
+              const index = Math.min(
+                timeData.length - 2,
+                start + Math.floor((i * (span - 1)) / (POINTS - 1)),
+              );
+              return (
+                ((timeData[Math.max(0, index - 1)] + timeData[index] + timeData[index + 1]) / 3 -
+                  128) /
+                128
+              );
+            });
+            wavePeak = Math.max(0.08, wavePeak * 0.985, ...samples.map(Math.abs));
+            drawWave(samples.map((value) => clamp01(0.5 + (value / wavePeak) * 0.45)));
             drewReal = true;
           }
         } else {
@@ -426,7 +568,7 @@ export function AudioVisualizer({
             });
             if (style === "pulse") {
               const avg = boosted.reduce((a, b) => a + b, 0) / boosted.length;
-              drawPulse(applyEnvelope([avg])[0]);
+              drawPulse(applyEnvelope([avg])[0], t);
             } else if (style === "waveform") {
               drawWaveform(applyEnvelope(boosted));
             } else if (style === "circular") {
@@ -445,15 +587,42 @@ export function AudioVisualizer({
         if (demo) drawIdle(t);
         else drawResting();
       }
-
-      if (!reduced) raf = requestAnimationFrame(drawFrame);
     };
 
-    if (reduced) drawFrame(0);
-    else raf = requestAnimationFrame(drawFrame);
+    const loop = (t: number) => {
+      drawFrame(t);
+      raf = requestAnimationFrame(loop);
+    };
+    // Repaint inherited ink on theme changes, even while paused. Explicit
+    // profile colors keep the exact same value in either editor theme.
+    const observer =
+      color === "currentColor"
+        ? new MutationObserver(() => {
+            setPaint();
+            if (!playing || reduced) drawFrame(0);
+          })
+        : null;
+    for (
+      let ancestor: HTMLElement | null = canvas;
+      observer && ancestor;
+      ancestor = ancestor.parentElement
+    ) {
+      observer.observe(ancestor, { attributes: true, attributeFilter: ["class", "style"] });
+    }
+    drawFrame(0);
+    if (playing && !reduced) raf = requestAnimationFrame(loop);
 
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      observer?.disconnect();
+    };
   }, [playing, style, color, size, opacity, roundness, speed, analyserRef, demo]);
 
-  return <canvas ref={canvasRef} aria-hidden className={SIZE_CLASS[size]} />;
+  return (
+    <canvas
+      ref={canvasRef}
+      aria-hidden
+      className={(style === "pulse" || style === "circular" ? RADIAL_SIZE_CLASS : SIZE_CLASS)[size]}
+    />
+  );
 }

@@ -1,4 +1,5 @@
 import { readJsonOrThrow } from "@/lib/http";
+import { registrationProof } from "./registration-proof";
 
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:3001";
 
@@ -25,8 +26,20 @@ export async function signUp(input: {
   name: string;
   email: string;
   password: string;
+  website?: string;
 }): Promise<AuthUser> {
-  const { user } = (await postJson("/api/auth/signup", input)) as { user: AuthUser };
+  const challenge = (await request("GET", "/api/auth/registration-challenge")) as {
+    id: string;
+    nonce: string;
+    difficulty: number;
+    minAgeMs: number;
+  };
+  const proof = await registrationProof(challenge);
+  const { user } = (await postJson("/api/auth/signup", {
+    ...input,
+    challengeId: challenge.id,
+    proof,
+  })) as { user: AuthUser };
   return user;
 }
 

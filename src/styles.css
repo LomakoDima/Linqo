@@ -921,3 +921,9 @@ html.vt-local ::view-transition-new(root) {
     width: 0%;
   }
 }
+
+/* Hallmark · component: guided tour · theme: existing Linqo Paper & Ink.
+   Only the scrim needs its own token; the card uses the app's surfaces. */
+:root {
+  --tour-scrim: oklch(0.1 0.012 60 / 0.64);
+}

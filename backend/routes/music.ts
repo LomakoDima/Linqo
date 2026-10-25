@@ -1,9 +1,16 @@
 import { Router } from "express";
-import multer from "multer";
 import { pool } from "../db";
+import { requireAuth } from "../auth";
+import { uploadBudget, downloadBudget } from "../abuse";
+import { ASSET_ID_PATTERN } from "../../src/lib/content-safety";
+import { assertUploadFile } from "../../src/lib/file-safety";
+import {
+  checkUploadedFile,
+  contentRateLimit,
+  limitedUpload,
+  requireSlugOwnership,
+} from "../content-security";
 
-const SLUG_PATTERN = /^[a-z0-9_-]{1,64}$/;
-const TRACK_ID_PATTERN = /^[0-9a-f-]{36}$/i;
 const MUSIC_MIME_TYPES = new Set([
   "audio/mpeg",
   "audio/mp3",
@@ -14,63 +21,49 @@ const MUSIC_MIME_TYPES = new Set([
   "audio/x-m4a",
   "audio/aac",
 ]);
-
-// Memory storage, no size limit — the track is small enough (a background
-// loop) that buffering the whole upload before writing one BYTEA row is
-// simpler than streaming, and there's no artificial cap here on purpose.
-const upload = multer({ storage: multer.memoryStorage() });
-
 export const musicRouter = Router();
-
-musicRouter.post("/:slug", upload.single("file"), async (req, res) => {
-  // Multer's typings make Express infer `req.params` as the looser
-  // `string | string[]` here (route + multi-handler overload interaction) —
-  // a real slug is always a single segment, so this is just a type coercion.
-  const slug = String(req.params.slug);
-  if (!SLUG_PATTERN.test(slug)) {
-    res.status(400).json({ error: "Invalid slug" });
-    return;
-  }
-
-  const file = req.file;
-  if (!file) {
-    res.status(400).json({ error: "No file uploaded" });
-    return;
-  }
-  if (!MUSIC_MIME_TYPES.has(file.mimetype)) {
-    res.status(400).json({ error: "Unsupported audio format" });
-    return;
-  }
-
-  const result = await pool.query<{ id: string }>(
-    "INSERT INTO music_tracks (slug, mime_type, data) VALUES ($1, $2, $3) RETURNING id",
-    [slug, file.mimetype, file.buffer],
-  );
-  res.json({ url: `/api/music/file/${result.rows[0].id}` });
-});
-
+musicRouter.post(
+  "/:slug",
+  requireAuth,
+  contentRateLimit,
+  requireSlugOwnership,
+  limitedUpload("audio"),
+  async (req, res) => {
+    if (!req.file) {
+      res.status(400).json({ error: "Choose an audio file to upload" });
+      return;
+    }
+    await uploadBudget(req.user!.id, req.file.size);
+    const bytes = await checkUploadedFile(req.file, "audio");
+    const mime = assertUploadFile(
+      { name: req.file.originalname, type: req.file.mimetype, size: req.file.size },
+      "audio",
+      bytes,
+    );
+    const result = await pool.query<{ id: string }>(
+      "INSERT INTO music_tracks (slug, mime_type, data, uploaded_by) VALUES ($1, $2, $3, $4) RETURNING id",
+      [String(req.params.slug), mime, bytes, req.user!.id],
+    );
+    res.json({ url: `/api/music/file/${result.rows[0].id}` });
+  },
+);
 musicRouter.get("/file/:id", async (req, res) => {
-  const { id } = req.params;
-  if (!TRACK_ID_PATTERN.test(id)) {
+  if (!ASSET_ID_PATTERN.test(req.params.id)) {
     res.status(404).end();
     return;
   }
-
   const result = await pool.query<{ mime_type: string; data: Buffer }>(
     "SELECT mime_type, data FROM music_tracks WHERE id = $1",
-    [id],
+    [req.params.id],
   );
   const row = result.rows[0];
-  if (!row) {
+  if (!row || !MUSIC_MIME_TYPES.has(row.mime_type)) {
     res.status(404).end();
     return;
   }
-
+  await downloadBudget(req, row.data.length);
   res.setHeader("Content-Type", row.mime_type);
-  // A public, non-credentialed asset: always CORS-readable so the player can
-  // load it with crossOrigin and Web Audio may analyse it (the visualizer).
-  // Set unconditionally — a copy cached from a plain (no-Origin) request
-  // would otherwise lack the header and fail the later CORS load.
+  res.setHeader("Content-Security-Policy", "default-src 'none'; sandbox");
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
   res.setHeader("Cache-Control", "public, max-age=31536000, immutable");

@@ -3,6 +3,7 @@ import { Rocket, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { publishProfile } from "@/lib/publish";
+import { toast } from "@/components/notifications";
 import type { Profile } from "@/lib/link-store";
 
 const STEPS = [
@@ -64,6 +65,7 @@ export function PublishDialog({
 
     publishProfile(profile.slug, JSON.stringify(profile))
       .then((res) => {
+        if (res.warnings?.length) toast.warning(res.warnings[0].message, { duration: 10_000 });
         networkResultRef.current = { updatedAt: res.updatedAt };
         maybeFinish();
       })

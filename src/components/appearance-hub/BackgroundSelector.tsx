@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { IMAGE_ACCEPT } from "@/lib/file-safety";
+import { safeContentUrl } from "@/lib/content-safety";
 import { motion } from "motion/react";
 import { ImageIcon, Palette, Sparkles as GradientIcon, Check, UploadCloud, X } from "lucide-react";
 import { SectionCard } from "@/components/ui/section-card";
@@ -180,7 +182,7 @@ function BackgroundDropzone({
       {profile.bgImage && (
         <>
           <img
-            src={profile.bgImage}
+            src={safeContentUrl(profile.bgImage, "image") || undefined}
             alt=""
             className="absolute inset-0 h-full w-full object-cover"
           />
@@ -218,7 +220,7 @@ function BackgroundDropzone({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept={IMAGE_ACCEPT}
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];

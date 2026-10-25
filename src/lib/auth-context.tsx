@@ -17,7 +17,12 @@ type AuthContextValue = {
   // visitor to /login.
   isLoading: boolean;
   signIn: (input: { email: string; password: string }) => Promise<AuthUser>;
-  signUp: (input: { name: string; email: string; password: string }) => Promise<AuthUser>;
+  signUp: (input: {
+    name: string;
+    email: string;
+    password: string;
+    website?: string;
+  }) => Promise<AuthUser>;
   signOut: () => Promise<void>;
   // Settings writes the updated user straight into the cache the same way
   // signIn/signUp do — no refetch needed, the PATCH response already has it.

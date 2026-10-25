@@ -7,6 +7,7 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
     return (
       <input
         type={type}
+        maxLength={type === "password" ? 1024 : type === "email" ? 254 : 2048}
         className={cn(
           "flex h-10 w-full rounded-ui border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/70 transition-[border-color,box-shadow] duration-150 hover:border-foreground/40 focus-visible:border-foreground focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none aria-[invalid=true]:border-destructive aria-[invalid=true]:ring-destructive/20 disabled:cursor-not-allowed disabled:opacity-50",
           className,

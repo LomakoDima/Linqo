@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog,
@@ -26,7 +25,6 @@ import {
   defaultProfile,
   loadProfile,
   saveProfile,
-  encodeProfile,
   imageFieldDisplay,
   type AmbientSettings,
   type ParticleSettings,
@@ -60,20 +58,20 @@ import { SectionCard } from "@/components/ui/section-card";
 import { VisualizerModule } from "@/components/atmosphere-tab/VisualizerModule";
 import { AmbientSoundsModule } from "@/components/atmosphere-tab/AmbientSoundsModule";
 import { ParticlesModule } from "@/components/atmosphere-tab/ParticlesModule";
+import { SettingSlider } from "@/components/atmosphere-tab/AtmosphereControls";
 import { FutureEffectsPlaceholderCard } from "@/components/atmosphere-tab/FutureEffectsPlaceholderCard";
 import { PublishHub } from "@/components/publish-hub/PublishHub";
 import { ProfileHub } from "@/components/profile-hub/ProfileHub";
 import { AppearanceHub } from "@/components/appearance-hub/AppearanceHub";
 import { publishProfile, uploadMusicTrack, getMyProfile } from "@/lib/publish";
-import { GuideTour, type TourStep } from "@/components/GuideTour";
+import { GuideTour } from "@/components/GuideTour";
+import { BUILDER_TOUR_SEEN_KEY, createBuilderTour } from "@/lib/builder-tour";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { BuilderSectionHeader } from "@/components/BuilderSectionHeader";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/lib/auth-context";
 import { UserMenu } from "@/components/UserMenu";
-
-const TOUR_SEEN_KEY = "linqo_tour_seen_v1";
 
 const ACCEPTED_MUSIC_TYPES = [
   "audio/mpeg",
@@ -116,6 +114,7 @@ function BuilderPage() {
   const [openGenre, setOpenGenre] = useState<MusicGenre | null>(null);
   const [activeTab, setActiveTab] = useState("content");
   const [tourActive, setTourActive] = useState(false);
+  const tourReturnTab = useRef("content");
   const blockNodeRefs = useRef(new Map<string, HTMLDivElement>());
   const blockRectsRef = useRef(new Map<string, DOMRect>());
 
@@ -126,7 +125,12 @@ function BuilderPage() {
   useEffect(() => {
     setProfile(loadProfile());
     setReady(true);
-    if (!localStorage.getItem(TOUR_SEEN_KEY)) setTourActive(true);
+    try {
+      if (!localStorage.getItem(BUILDER_TOUR_SEEN_KEY)) setTourActive(true);
+    } catch {
+      // Storage may be unavailable; the tour still works for this visit.
+      setTourActive(true);
+    }
   }, []);
 
   // Once signed in, the account's own saved page (if any) replaces whatever
@@ -164,51 +168,18 @@ function BuilderPage() {
 
   const closeTour = () => {
     setTourActive(false);
-    localStorage.setItem(TOUR_SEEN_KEY, "1");
+    setActiveTab(tourReturnTab.current);
+    try {
+      localStorage.setItem(BUILDER_TOUR_SEEN_KEY, "1");
+    } catch {
+      /* Session-only in restricted browsers. */
+    }
   };
-
-  const tourSteps: TourStep[] = [
-    {
-      target: '[data-tour="brand"]',
-      title: "Welcome to Linqo",
-      body: "A quick tour of the builder — five stops, about a minute.",
-    },
-    {
-      target: '[data-tour="tab-templates"]',
-      title: "Start from a template",
-      body: "Pick a ready-made layout and theme, then tweak it to fit — faster than building from a blank page.",
-      onBeforeShow: () => setActiveTab("templates"),
-    },
-    {
-      target: '[data-tour="add-blocks"]',
-      title: "Add content blocks",
-      body: "Search the block library for anything — links, headings, galleries, music, and more — or hover between blocks to insert one right there.",
-      onBeforeShow: () => setActiveTab("content"),
-    },
-    {
-      target: '[data-tour="tab-design"]',
-      title: "Pick a look",
-      body: "Themes, banner colors and patterns, and an optional background image all live here.",
-      onBeforeShow: () => setActiveTab("design"),
-    },
-    {
-      target: '[data-tour="tab-profile"]',
-      title: "Your details",
-      body: "Set your username, name, bio, avatar, and cover photo.",
-      onBeforeShow: () => setActiveTab("profile"),
-    },
-    {
-      target: '[data-tour="preview"]',
-      title: "Live preview",
-      body: "Every change shows up here instantly, exactly as visitors will see it.",
-      onBeforeShow: () => setActiveTab("profile"),
-    },
-    {
-      target: '[data-tour="share-buttons"]',
-      title: "Share your page",
-      body: "Copy publishes your latest changes and copies your link — share it anywhere.",
-    },
-  ];
+  const startTour = () => {
+    tourReturnTab.current = activeTab;
+    setTourActive(true);
+  };
+  const tourSteps = useMemo(() => createBuilderTour(setActiveTab), []);
 
   useEffect(() => {
     if (ready) saveProfile(profile);
@@ -274,8 +245,8 @@ function BuilderPage() {
     try {
       const dataUrl = await fileToResizedDataUrl(file, 192, 0.8, 25_000);
       update({ avatar: dataUrl, avatarName: file.name });
-    } catch {
-      toast.error("Couldn't read that image");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't read that image");
     }
   };
 
@@ -283,8 +254,8 @@ function BuilderPage() {
     try {
       const dataUrl = await fileToResizedDataUrl(file, 640, 0.78, 50_000);
       update({ cover: dataUrl, coverName: file.name });
-    } catch {
-      toast.error("Couldn't read that image");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't read that image");
     }
   };
 
@@ -292,8 +263,8 @@ function BuilderPage() {
     try {
       const dataUrl = await fileToResizedDataUrl(file, 1280, 0.72, 140_000);
       update({ bgImage: dataUrl, bgImageName: file.name });
-    } catch {
-      toast.error("Couldn't read that image");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't read that image");
     }
   };
 
@@ -308,7 +279,7 @@ function BuilderPage() {
       updateMusic({ url });
     } catch (err) {
       console.error("Music upload failed:", err);
-      toast.error("Couldn't upload that track");
+      toast.error(err instanceof Error ? err.message : "Couldn't upload that track");
     } finally {
       setMusicUploading(false);
     }
@@ -444,18 +415,13 @@ function BuilderPage() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  // Encoding the profile (which can carry several megabytes of embedded
-  // image data) is too heavy to redo synchronously on every keystroke —
-  // deferring it keeps typing responsive and lets the share link catch up
-  // a moment later.
+  // Keep the live preview responsive while editing.
   const deferredProfile = useDeferredValue(profile);
 
   // Relative path: resolvable during SSR and immediately after hydration, with
   // no dependency on `window` or client mount timing — the Open/Preview links
   // below must never risk pointing at an empty or stale href.
-  const sharePath = useMemo(() => {
-    return `/p/${deferredProfile.slug}#${encodeProfile(deferredProfile)}`;
-  }, [deferredProfile]);
+  const sharePath = "/preview";
 
   // The short link (no embedded data) only resolves for anyone else once
   // the profile is actually saved server-side — publish right before
@@ -471,6 +437,7 @@ function BuilderPage() {
     try {
       const res = await publishProfile(profile.slug, JSON.stringify(profile));
       setLastPublishedAt(res.updatedAt);
+      if (res.warnings?.length) toast.warning(res.warnings[0].message, { duration: 10_000 });
     } catch (err) {
       setPublishing(false);
       toast.error(err instanceof Error ? err.message : "Couldn't publish — try again in a moment");
@@ -514,13 +481,15 @@ function BuilderPage() {
                 size="icon"
                 title="Take the tour"
                 aria-label="Take the tour"
-                onClick={() => setTourActive(true)}
+                data-tour="tour-launcher"
+                onClick={startTour}
                 className="hidden sm:inline-flex"
               >
                 <HelpCircle />
               </Button>
               <UserMenu
                 user={user}
+                onStartTour={startTour}
                 onSignOut={() => {
                   // No explicit redirect here — clearing the user drops
                   // `user` to null, and the auth-gate effect above already
@@ -664,16 +633,18 @@ function BuilderPage() {
               </TabsContent>
 
               <TabsContent value="music" className="mt-6 space-y-10">
-                <BuilderSectionHeader label="Atmosphere" title="Set the mood.">
-                  Choose music, ambient sounds and motion to make your page feel like you.
-                </BuilderSectionHeader>
+                <h2 className="font-display text-3xl font-medium leading-tight sm:text-4xl">
+                  Atmosphere
+                </h2>
                 <div className="space-y-4">
                   <SectionCard
                     icon={Music2}
                     title="Background Music"
+                    layout="studio"
                     description="A track visitors can tap to play — never autoplays with sound."
                     headerAccessory={
                       <Switch
+                        aria-label="Enable background music"
                         checked={profile.music?.enabled ?? false}
                         onCheckedChange={(checked) => updateMusic({ enabled: checked })}
                       />
@@ -683,7 +654,7 @@ function BuilderPage() {
                       <>
                         <div>
                           <Label className="mb-3 block">Pick a vibe</Label>
-                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                          <div className="grid grid-cols-1 gap-3 @min-[360px]:grid-cols-2 @min-[600px]:grid-cols-3">
                             {(Object.keys(MUSIC_GENRES) as MusicGenre[]).map((g) => (
                               <MusicGenreCard
                                 key={g}
@@ -733,7 +704,7 @@ function BuilderPage() {
                           {profile.music?.url && <AudioPreviewPlayer src={profile.music.url} />}
                         </div>
 
-                        <div className="grid gap-6 sm:grid-cols-2">
+                        <div className="grid items-center gap-6 border-t border-border pt-6 @min-[420px]:grid-cols-2">
                           <div className="flex items-center gap-2.5">
                             <Checkbox
                               id="music-loop"
@@ -747,23 +718,14 @@ function BuilderPage() {
                               Loop
                             </Label>
                           </div>
-                          <div>
-                            <Label className="mb-2.5 flex items-center justify-between">
-                              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                Volume
-                              </span>
-                              <span className="text-xs font-medium text-muted-foreground">
-                                {profile.music?.volume ?? 70}%
-                              </span>
-                            </Label>
-                            <Slider
-                              min={0}
-                              max={100}
-                              step={1}
-                              value={[profile.music?.volume ?? 70]}
-                              onValueChange={([v]) => updateMusic({ volume: v })}
-                            />
-                          </div>
+                          <SettingSlider
+                            label="Volume"
+                            min={0}
+                            max={100}
+                            value={profile.music?.volume ?? 70}
+                            display={`${profile.music?.volume ?? 70}%`}
+                            onChange={(volume) => updateMusic({ volume })}
+                          />
                         </div>
                       </>
                     ) : (
@@ -828,7 +790,11 @@ function BuilderPage() {
               <Plus /> Add link
             </Button>
           )}
-          <Button className="flex-1" onClick={() => setMobilePreviewOpen(true)}>
+          <Button
+            data-tour="mobile-preview"
+            className="flex-1"
+            onClick={() => setMobilePreviewOpen(true)}
+          >
             <Smartphone /> Preview page
           </Button>
         </div>

@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as PreviewRouteImport } from './routes/preview'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as BuildRouteImport } from './routes/build'
@@ -31,6 +32,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PreviewRoute = PreviewRouteImport.update({
+  id: '/preview',
+  path: '/preview',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OnboardingRoute = OnboardingRouteImport.update({
@@ -64,6 +70,7 @@ export interface FileRoutesByFullPath {
   '/build': typeof BuildRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
+  '/preview': typeof PreviewRoute
   '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
   '/welcome': typeof WelcomeRoute
@@ -74,6 +81,7 @@ export interface FileRoutesByTo {
   '/build': typeof BuildRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
+  '/preview': typeof PreviewRoute
   '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
   '/welcome': typeof WelcomeRoute
@@ -85,6 +93,7 @@ export interface FileRoutesById {
   '/build': typeof BuildRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
+  '/preview': typeof PreviewRoute
   '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
   '/welcome': typeof WelcomeRoute
@@ -97,6 +106,7 @@ export interface FileRouteTypes {
     | '/build'
     | '/login'
     | '/onboarding'
+    | '/preview'
     | '/reset-password'
     | '/settings'
     | '/welcome'
@@ -107,6 +117,7 @@ export interface FileRouteTypes {
     | '/build'
     | '/login'
     | '/onboarding'
+    | '/preview'
     | '/reset-password'
     | '/settings'
     | '/welcome'
@@ -117,6 +128,7 @@ export interface FileRouteTypes {
     | '/build'
     | '/login'
     | '/onboarding'
+    | '/preview'
     | '/reset-password'
     | '/settings'
     | '/welcome'
@@ -128,6 +140,7 @@ export interface RootRouteChildren {
   BuildRoute: typeof BuildRoute
   LoginRoute: typeof LoginRoute
   OnboardingRoute: typeof OnboardingRoute
+  PreviewRoute: typeof PreviewRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SettingsRoute: typeof SettingsRoute
   WelcomeRoute: typeof WelcomeRoute
@@ -155,6 +168,13 @@ declare module '@tanstack/react-router' {
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/preview': {
+      id: '/preview'
+      path: '/preview'
+      fullPath: '/preview'
+      preLoaderRoute: typeof PreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/onboarding': {
@@ -200,6 +220,7 @@ const rootRouteChildren: RootRouteChildren = {
   BuildRoute: BuildRoute,
   LoginRoute: LoginRoute,
   OnboardingRoute: OnboardingRoute,
+  PreviewRoute: PreviewRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SettingsRoute: SettingsRoute,
   WelcomeRoute: WelcomeRoute,

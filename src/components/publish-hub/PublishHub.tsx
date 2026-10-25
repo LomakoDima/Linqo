@@ -10,6 +10,10 @@ import { QRCodeCard } from "./QRCodeCard";
 import { PublishDialog } from "./PublishDialog";
 import { SuccessDialog } from "./SuccessDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { validateProfileContent } from "@/lib/content-safety";
+import { profileModerationWarnings } from "@/lib/moderation-warnings";
+import { ContentWarnings } from "@/components/ContentWarnings";
+import { detectProfileSpam } from "@/lib/spam-detection";
 
 // Publication stays in view while secondary tools switch by task. The
 // existing publish flow and success dialog remain owned by this panel.
@@ -30,6 +34,11 @@ export function PublishHub({
 }) {
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
+  const checked = validateProfileContent(profile);
+  const issues = [
+    ...checked.issues,
+    ...(checked.profile ? detectProfileSpam(checked.profile) : []),
+  ];
 
   const handlePublishSuccess = (updatedAt: string) => {
     onPublishSuccess(updatedAt);
@@ -55,6 +64,19 @@ export function PublishHub({
         onPublish={() => setPublishDialogOpen(true)}
         onCopyLink={handleCopyLink}
       />
+      {issues.length > 0 && (
+        <div className="rounded-lg border border-destructive/30 p-4 text-sm" aria-live="polite">
+          <p className="font-medium">Review before publishing</p>
+          <ul className="mt-2 space-y-1 text-xs text-destructive">
+            {issues.map((issue, index) => (
+              <li key={index}>
+                {issue.path}: {issue.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <ContentWarnings warnings={profileModerationWarnings(profile)} />
       <Tabs defaultValue="preview">
         <TabsList aria-label="Publishing tools">
           <TabsTrigger value="preview">Link preview</TabsTrigger>
@@ -86,7 +108,7 @@ export function PublishHub({
         onOpenChange={setSuccessDialogOpen}
         profile={profile}
         shortUrl={shortUrl}
-        sharePath={sharePath}
+        sharePath={shortUrl}
       />
     </div>
   );

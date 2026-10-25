@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { safePreviewProfile } from "@/lib/content-safety";
 import {
   BANNER_STYLES,
   HEADING_SIZES,
@@ -77,8 +78,15 @@ const DIVIDER_ICONS: Record<string, LucideIcon> = {
 };
 
 function inferVideoProvider(url: string): "youtube" | "vimeo" | "file" {
-  if (/youtube\.com|youtu\.be/.test(url)) return "youtube";
-  if (/vimeo\.com/.test(url)) return "vimeo";
+  let host = "";
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    return "file";
+  }
+  if (["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"].includes(host))
+    return "youtube";
+  if (["vimeo.com", "www.vimeo.com", "player.vimeo.com"].includes(host)) return "vimeo";
   return "file";
 }
 
@@ -118,7 +126,14 @@ const socialIcon: Record<SocialKind, React.ComponentType<{ className?: string }>
   website: Globe,
 };
 
-export function LinkPreview({ profile, framed = false }: { profile: Profile; framed?: boolean }) {
+export function LinkPreview({
+  profile: draftProfile,
+  framed = false,
+}: {
+  profile: Profile;
+  framed?: boolean;
+}) {
+  const profile = useMemo(() => safePreviewProfile(draftProfile), [draftProfile]);
   const theme = THEMES[profile.theme] ?? THEMES.dark;
   const name = profile.name || "";
   const blocks = profile.blocks ?? [];
@@ -166,7 +181,7 @@ export function LinkPreview({ profile, framed = false }: { profile: Profile; fra
           <div
             className="absolute inset-0 -z-10 bg-cover bg-center"
             style={{
-              backgroundImage: `url(${profile.bgImage})`,
+              backgroundImage: `url(${JSON.stringify(profile.bgImage)})`,
               filter: effects.blur
                 ? `blur(${((effects.blurIntensity ?? 40) / 100) * 20}px)`
                 : undefined,
@@ -704,6 +719,8 @@ export function LinkPreview({ profile, framed = false }: { profile: Profile; fra
                         title={b.videoTitle || "Video"}
                         className="h-full w-full"
                         allow="autoplay; encrypted-media; picture-in-picture"
+                        sandbox="allow-scripts allow-same-origin allow-presentation"
+                        referrerPolicy="strict-origin-when-cross-origin"
                         allowFullScreen
                       />
                     ) : null}

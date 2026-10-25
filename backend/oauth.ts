@@ -79,8 +79,14 @@ export async function exchangeGoogleCode(
     headers: { Authorization: `Bearer ${access_token}` },
   });
   if (!userRes.ok) throw new Error("Couldn't read the Google profile");
-  const user = (await userRes.json()) as { sub: string; email?: string; name?: string };
-  if (!user.email) throw new Error("Your Google account has no email to sign in with");
+  const user = (await userRes.json()) as {
+    sub: string;
+    email?: string;
+    email_verified?: boolean;
+    name?: string;
+  };
+  if (!user.email || user.email_verified !== true)
+    throw new Error("Your Google account needs a verified email to sign in");
 
   return { providerUserId: user.sub, email: user.email, name: user.name ?? user.email };
 }
@@ -139,8 +145,8 @@ export async function exchangeGithubCode(code: string): Promise<OAuthProfile> {
 
   // A private-by-default primary email means `user.email` is null — the
   // verified primary has to come from the emails endpoint instead.
-  let email = user.email;
-  if (!email) {
+  let email: string | null = null;
+  {
     const emailsRes = await fetch("https://api.github.com/user/emails", { headers });
     if (emailsRes.ok) {
       const emails = (await emailsRes.json()) as {

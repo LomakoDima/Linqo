@@ -96,6 +96,7 @@ function LoginPage() {
       name: String(data.get("name") ?? "").trim(),
       email: String(data.get("email") ?? "").trim(),
       password: String(data.get("password") ?? ""),
+      website: String(data.get("website") ?? ""),
     };
     const found = validate(mode, values);
     setErrors(found);
@@ -183,6 +184,19 @@ function LoginPage() {
                 aria-describedby={errors.name ? "name-error" : undefined}
               />
             </Field>
+          )}
+          {!signin && (
+            <div aria-hidden="true" className="absolute -left-[10000px] h-px w-px overflow-hidden">
+              <label htmlFor="registration-website">Leave this field empty</label>
+              <input
+                id="registration-website"
+                name="website"
+                type="text"
+                autoComplete="off"
+                tabIndex={-1}
+                maxLength={200}
+              />
+            </div>
           )}
           <Field id="email" label="Email" error={errors.email}>
             <Input

@@ -5,6 +5,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { SegmentedToggle } from "@/components/BlockEditor";
 import { toast } from "@/components/notifications";
 import { BANNER_STYLES, type BannerStyle, type Profile } from "@/lib/link-store";
+import { IMAGE_ACCEPT } from "@/lib/file-safety";
+import { safeContentUrl } from "@/lib/content-safety";
 
 type CoverKind = "image" | "solid" | "gradient";
 
@@ -77,7 +79,11 @@ export function CoverSelector({
       }}
     >
       {kind === "image" && profile.cover && (
-        <img src={profile.cover} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        <img
+          src={safeContentUrl(profile.cover, "image") || undefined}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+        />
       )}
       {uploading && (
         <div
@@ -164,7 +170,7 @@ export function CoverSelector({
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept={IMAGE_ACCEPT}
         aria-label="Cover image file"
         className="hidden"
         onChange={(e) => {
