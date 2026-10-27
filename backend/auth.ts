@@ -47,15 +47,21 @@ export async function destroySession(token: string): Promise<void> {
 // hasPassword distinguishes an OAuth-only account (password_hash is NULL)
 // from one that can sign in with a password — Settings and /signin both
 // need to know this without a second round trip.
-export type AuthUser = { id: string; email: string; name: string; hasPassword: boolean };
+export type AuthUser = {
+  id: string;
+  email: string;
+  name: string;
+  hasPassword: boolean;
+  pendingEmail?: string | null;
+};
 
 export async function getUserForToken(token: string | undefined): Promise<AuthUser | null> {
   if (!token) return null;
   const result = await pool.query<AuthUser>(
-    `SELECT users.id, users.email, users.name, (users.password_hash IS NOT NULL) AS "hasPassword"
+    `SELECT users.id, users.email, users.name, users.pending_email AS "pendingEmail", (users.password_hash IS NOT NULL) AS "hasPassword"
      FROM sessions
      JOIN users ON users.id = sessions.user_id
-     WHERE sessions.token = $1 AND sessions.expires_at > now()`,
+     WHERE sessions.token = $1 AND sessions.expires_at > now() AND (users.email_verified_at IS NOT NULL OR NOT users.email_verification_required)`,
     [token],
   );
   return result.rows[0] ?? null;

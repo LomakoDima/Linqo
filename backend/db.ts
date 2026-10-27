@@ -1,5 +1,6 @@
 import { Pool } from "pg";
 import { ABUSE_SCHEMA } from "./abuse-schema";
+import { EMAIL_VERIFICATION_SCHEMA } from "./email-verification-schema";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -83,4 +84,5 @@ export async function initDb() {
     CREATE INDEX IF NOT EXISTS password_reset_tokens_reset_token_idx ON password_reset_tokens(reset_token);
   `);
   await pool.query(ABUSE_SCHEMA);
+  await pool.query(EMAIL_VERIFICATION_SCHEMA);
 }

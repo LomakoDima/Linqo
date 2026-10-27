@@ -3,7 +3,19 @@ import { registrationProof } from "./registration-proof";
 
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:3001";
 
-export type AuthUser = { id: string; name: string; email: string; hasPassword: boolean };
+export type AuthUser = {
+  id: string;
+  name: string;
+  email: string;
+  hasPassword: boolean;
+  pendingEmail?: string | null;
+};
+export type SignUpResult = {
+  verificationRequired: true;
+  email: string;
+  emailSent: boolean;
+  deliveryError?: string;
+};
 
 async function request(method: string, path: string, data?: unknown): Promise<unknown> {
   const res = await fetch(`${API_URL}${path}`, {
@@ -27,7 +39,7 @@ export async function signUp(input: {
   email: string;
   password: string;
   website?: string;
-}): Promise<AuthUser> {
+}): Promise<SignUpResult> {
   const challenge = (await request("GET", "/api/auth/registration-challenge")) as {
     id: string;
     nonce: string;
@@ -35,12 +47,24 @@ export async function signUp(input: {
     minAgeMs: number;
   };
   const proof = await registrationProof(challenge);
-  const { user } = (await postJson("/api/auth/signup", {
+  return (await postJson("/api/auth/signup", {
     ...input,
     challengeId: challenge.id,
     proof,
-  })) as { user: AuthUser };
-  return user;
+  })) as SignUpResult;
+}
+
+export async function resendVerification(email: string): Promise<void> {
+  await postJson("/api/auth/resend-verification", { email });
+}
+export async function confirmEmail(token: string): Promise<{ ok: true; emailChange: boolean }> {
+  return (await postJson("/api/auth/verify-email", { token })) as {
+    ok: true;
+    emailChange: boolean;
+  };
+}
+export async function resendEmailChange(): Promise<void> {
+  await postJson("/api/me/resend-email-verification", {});
 }
 
 export async function signIn(input: { email: string; password: string }): Promise<AuthUser> {
@@ -49,7 +73,9 @@ export async function signIn(input: { email: string; password: string }): Promis
 }
 
 export async function signOut(): Promise<void> {
-  await fetch(`${API_URL}/api/auth/signout`, { method: "POST", credentials: "include" });
+  await readJsonOrThrow(
+    await fetch(`${API_URL}/api/auth/signout`, { method: "POST", credentials: "include" }),
+  );
 }
 
 // Never throws — an unreachable API or a missing session both just mean

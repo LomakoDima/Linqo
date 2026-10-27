@@ -10,9 +10,18 @@ import { authRouter } from "./routes/auth";
 import { meRouter } from "./routes/me";
 import { errorHandler } from "./http-errors";
 import { apiRateLimit, trustedProxies } from "./abuse";
+import { emailConfiguration, verificationPageUrl } from "./email";
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 3001);
+try {
+  emailConfiguration();
+  verificationPageUrl();
+} catch {
+  console.warn(
+    "Email delivery is not configured. Accounts can register, but email confirmation and recovery need delivery settings; run npm run mail:check.",
+  );
+}
 app.set("trust proxy", trustedProxies(process.env.TRUSTED_PROXIES));
 
 // No CORS_ORIGIN set → trust any localhost port in dev, since Vite hops

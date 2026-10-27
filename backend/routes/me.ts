@@ -2,6 +2,7 @@ import { Router } from "express";
 import { pool } from "../db";
 import { requireAuth, hashPassword, verifyPassword, SESSION_COOKIE, type AuthUser } from "../auth";
 import { contentRateLimit } from "../abuse";
+import { requestEmailVerification } from "../email-verification";
 import {
   accountNameSchema,
   accountEmailSchema,
@@ -10,6 +11,10 @@ import {
 } from "../../src/lib/account-validation";
 
 export const meRouter = Router();
+meRouter.use((_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
 meRouter.use(requireAuth);
 meRouter.use((req, res, next) =>
   req.method === "GET" ? next() : contentRateLimit(req, res, next),
@@ -72,14 +77,30 @@ meRouter.patch("/", requireAuth, async (req, res) => {
       res.status(409).json({ error: "An account with this email already exists" });
       return;
     }
+    await requestEmailVerification(req.user!.id, email);
   }
 
   const result = await pool.query<AuthUser>(
-    `UPDATE users SET name = COALESCE($1, name), email = COALESCE($2, email)
-     WHERE id = $3 RETURNING id, name, email, (password_hash IS NOT NULL) AS "hasPassword"`,
-    [name ?? null, email ?? null, req.user!.id],
+    `UPDATE users SET name = COALESCE($1, name)
+     WHERE id = $2 RETURNING id, name, email, pending_email AS "pendingEmail", (password_hash IS NOT NULL) AS "hasPassword"`,
+    [name ?? null, req.user!.id],
   );
   res.json({ user: result.rows[0] });
+});
+
+meRouter.post("/resend-email-verification", async (req, res) => {
+  const row = (
+    await pool.query<{ pending_email: string | null }>(
+      "SELECT pending_email FROM users WHERE id=$1",
+      [req.user!.id],
+    )
+  ).rows[0];
+  if (!row?.pending_email) {
+    res.status(400).json({ error: "There is no email change to confirm" });
+    return;
+  }
+  await requestEmailVerification(req.user!.id, row.pending_email);
+  res.json({ ok: true });
 });
 
 meRouter.patch("/password", requireAuth, async (req, res) => {

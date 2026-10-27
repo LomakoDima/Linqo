@@ -19,7 +19,14 @@ import {
   type OAuthProfile,
   type OAuthProvider,
 } from "../oauth";
-import { sendPasswordResetEmail } from "../email";
+import {
+  sendPasswordResetEmail,
+  emailConfiguration,
+  verificationPageUrl,
+  EmailDeliveryError,
+} from "../email";
+import { confirmEmail, requestEmailVerification } from "../email-verification";
+import { authDb } from "../auth-transaction";
 import {
   accountNameSchema,
   accountEmailSchema,
@@ -44,6 +51,10 @@ function frontendUrl(): string {
 }
 
 export const authRouter = Router();
+authRouter.use((_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
 authRouter.use((req, res, next) =>
   req.path === "/me" || req.path === "/signout" || req.path === "/registration-challenge"
     ? next()
@@ -79,8 +90,29 @@ authRouter.post("/signup", signupRateLimit, async (req, res) => {
   }
   await verifyRegistration(req);
 
-  const existing = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
+  const existing = await pool.query<{
+    id: string;
+    password_hash: string | null;
+    email_verified_at: Date | null;
+    email_verification_required: boolean;
+  }>(
+    "SELECT id,password_hash,email_verified_at,email_verification_required FROM users WHERE email = $1",
+    [email],
+  );
   if (existing.rows.length > 0) {
+    const row = existing.rows[0];
+    if (
+      row.email_verification_required &&
+      !row.email_verified_at &&
+      row.password_hash &&
+      (await verifyPassword(password, row.password_hash))
+    ) {
+      res.status(403).json({
+        error: "Confirm your email before signing in.",
+        code: "EMAIL_VERIFICATION_REQUIRED",
+      });
+      return;
+    }
     res.status(409).json({ error: "An account with this email already exists" });
     return;
   }
@@ -94,29 +126,81 @@ authRouter.post("/signup", signupRateLimit, async (req, res) => {
   );
   const user = result.rows[0];
 
-  const token = await createSession(user.id);
-  res.cookie(SESSION_COOKIE, token, sessionCookieOptions());
-  res.status(201).json({ user });
+  try {
+    await requestEmailVerification(user.id);
+  } catch (error) {
+    // The account already exists. Preserve that result and open confirmation
+    // even if delivery fails, without granting a session or claiming mail sent.
+    console.error("Signup confirmation delivery failed", {
+      code: error instanceof EmailDeliveryError ? error.code : "internal",
+    });
+    res.status(201).json({
+      verificationRequired: true,
+      email,
+      emailSent: false,
+      deliveryError:
+        "Your account is saved, but the confirmation email couldn't be sent. Please request a new link.",
+    });
+    return;
+  }
+  res.status(201).json({ verificationRequired: true, email, emailSent: true });
+});
+
+authRouter.post("/resend-verification", resetRateLimit, async (req, res) => {
+  emailConfiguration();
+  verificationPageUrl();
+  const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  if (!accountEmailSchema.safeParse(email).success) {
+    res.status(400).json({ error: "Enter a valid email" });
+    return;
+  }
+  const row = (
+    await pool.query<{ id: string }>(
+      "SELECT id FROM users WHERE email=$1 AND email_verified_at IS NULL",
+      [email],
+    )
+  ).rows[0];
+  if (row) await requestEmailVerification(row.id);
+  res.setHeader("Cache-Control", "no-store");
+  res.json({ ok: true });
+});
+
+authRouter.post("/verify-email", async (req, res) => {
+  const token = typeof req.body?.token === "string" ? req.body.token : "";
+  const result = await confirmEmail(token);
+  res.setHeader("Cache-Control", "no-store");
+  res.json({ ok: true, ...result });
 });
 
 authRouter.post("/signin", signinRateLimit, async (req, res) => {
   const body = req.body ?? {};
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const password = typeof body.password === "string" ? body.password : "";
+  // Keep unknown, OAuth-only and incorrect-password accounts indistinguishable.
+  const invalid = () =>
+    res.status(401).json({
+      error: "Invalid email or password",
+      code: "INVALID_CREDENTIALS",
+    });
   if (!accountEmailSchema.safeParse(email).success || password.length > 1024) {
-    res.status(401).json({ error: "Invalid email or password" });
+    invalid();
     return;
   }
 
-  const result = await pool.query<AuthUser & { password_hash: string | null }>(
-    "SELECT id, name, email, password_hash FROM users WHERE email = $1",
+  const result = await pool.query<
+    AuthUser & {
+      password_hash: string | null;
+      email_verified_at: Date | null;
+      email_verification_required: boolean;
+    }
+  >(
+    'SELECT id, name, email, password_hash, email_verified_at,email_verification_required, pending_email AS "pendingEmail" FROM users WHERE email = $1',
     [email],
   );
   const row = result.rows[0];
   // Same message whether the email is unknown, the account is OAuth-only
   // (no password_hash), or the password is wrong — none of those should be
   // distinguishable from the outside.
-  const invalid = () => res.status(401).json({ error: "Invalid email or password" });
 
   if (!row || !row.password_hash) {
     invalid();
@@ -126,10 +210,25 @@ authRouter.post("/signin", signinRateLimit, async (req, res) => {
     invalid();
     return;
   }
+  if (row.email_verification_required && !row.email_verified_at) {
+    res.status(403).json({
+      error: "Confirm your email before signing in.",
+      code: "EMAIL_VERIFICATION_REQUIRED",
+    });
+    return;
+  }
 
   const token = await createSession(row.id);
   res.cookie(SESSION_COOKIE, token, sessionCookieOptions());
-  res.json({ user: { id: row.id, name: row.name, email: row.email, hasPassword: true } });
+  res.json({
+    user: {
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      hasPassword: true,
+      pendingEmail: row.pendingEmail,
+    },
+  });
 });
 
 authRouter.post("/signout", async (req, res) => {
@@ -142,6 +241,7 @@ authRouter.post("/signout", async (req, res) => {
 // --- Password reset ---
 
 authRouter.post("/forgot-password", resetRateLimit, async (req, res) => {
+  emailConfiguration();
   const body = req.body ?? {};
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
 
@@ -169,14 +269,16 @@ authRouter.post("/forgot-password", resetRateLimit, async (req, res) => {
     const code = crypto.randomInt(100000, 999999).toString();
     const codeHash = await hashPassword(code);
     const expiresAt = new Date(Date.now() + RESET_CODE_TTL_MS);
-    await pool.query(
-      "INSERT INTO password_reset_tokens (user_id, code_hash, expires_at) VALUES ($1, $2, $3)",
-      [user.id, codeHash, expiresAt],
+    const issued = await pool.query<{ id: string }>(
+      "INSERT INTO password_reset_tokens (user_id, code_hash, expires_at,email) VALUES ($1, $2, $3,$4) RETURNING id",
+      [user.id, codeHash, expiresAt, email],
     );
 
-    await sendPasswordResetEmail(email, code);
+    await sendPasswordResetEmail(email, code, issued.rows[0].id);
   } catch (err) {
-    console.error("forgot-password: background work failed:", err);
+    console.error("Password reset delivery failed", {
+      code: err instanceof EmailDeliveryError ? err.code : "internal",
+    });
   }
 });
 
@@ -202,9 +304,9 @@ authRouter.post("/verify-reset-code", signinRateLimit, async (req, res) => {
 
   const tokenResult = await pool.query<{ id: string; code_hash: string | null; attempts: number }>(
     `SELECT id, code_hash, attempts FROM password_reset_tokens
-     WHERE user_id = $1 AND verified_at IS NULL AND expires_at > now()
+     WHERE user_id = $1 AND email=$2 AND verified_at IS NULL AND expires_at > now()
      ORDER BY created_at DESC LIMIT 1`,
-    [user.id],
+    [user.id, email],
   );
   const row = tokenResult.rows[0];
   if (!row || !row.code_hash) {
@@ -231,12 +333,16 @@ authRouter.post("/verify-reset-code", signinRateLimit, async (req, res) => {
   }
 
   const resetToken = crypto.randomBytes(32).toString("hex");
-  await pool.query(
+  const claimed = await pool.query(
     `UPDATE password_reset_tokens
      SET reset_token = $1, verified_at = now(), code_hash = NULL, expires_at = $2
-     WHERE id = $3`,
+     WHERE id = $3 AND verified_at IS NULL AND code_hash IS NOT NULL AND expires_at>now() RETURNING id`,
     [resetToken, new Date(Date.now() + RESET_CODE_TTL_MS), row.id],
   );
+  if (!claimed.rows.length) {
+    invalid();
+    return;
+  }
   res.json({ resetToken });
 });
 
@@ -268,12 +374,26 @@ authRouter.post("/reset-password", async (req, res) => {
   }
 
   const passwordHash = await hashPassword(password);
-  await pool.query("UPDATE users SET password_hash = $1 WHERE id = $2", [
-    passwordHash,
-    row.user_id,
-  ]);
-  await pool.query("DELETE FROM password_reset_tokens WHERE id = $1", [row.id]);
-  await pool.query("DELETE FROM sessions WHERE user_id = $1", [row.user_id]);
+  await authDb.transaction(async (client) => {
+    const user = (
+      await client.query<{ email: string }>("SELECT email FROM users WHERE id=$1 FOR UPDATE", [
+        row.user_id,
+      ])
+    ).rows[0];
+    const valid = await client.query(
+      "SELECT id FROM password_reset_tokens WHERE id=$1 AND reset_token=$2 AND verified_at IS NOT NULL AND expires_at>now() AND email=$3",
+      [row.id, resetToken, user?.email],
+    );
+    if (!user || !valid.rows.length)
+      throw Object.assign(new Error("That reset link expired — start over"), { status: 401 });
+    await client.query(
+      "UPDATE users SET password_hash=$1,email_verified_at=COALESCE(email_verified_at,now()),email_verification_required=true,pending_email=NULL WHERE id=$2",
+      [passwordHash, row.user_id],
+    );
+    await client.query("DELETE FROM password_reset_tokens WHERE user_id=$1", [row.user_id]);
+    await client.query("DELETE FROM email_verification_tokens WHERE user_id=$1", [row.user_id]);
+    await client.query("DELETE FROM sessions WHERE user_id=$1", [row.user_id]);
+  });
   res.json({ ok: true });
 });
 
@@ -308,6 +428,56 @@ function redirectWithError(res: Response, message: string) {
   res.redirect(`${frontendUrl()}/login?oauthError=${encodeURIComponent(message)}`);
 }
 
+async function trustProviderEmail(
+  userId: string,
+  profile: OAuthProfile,
+  provider: OAuthProvider,
+  link: boolean,
+): Promise<AuthUser> {
+  return authDb.transaction(async (client) => {
+    const row = (
+      await client.query<{
+        email: string;
+        email_verified_at: Date | null;
+        email_verification_required: boolean;
+      }>(
+        "SELECT email,email_verified_at,email_verification_required FROM users WHERE id=$1 FOR UPDATE",
+        [userId],
+      )
+    ).rows[0];
+    if (!row) throw new Error("Account not found");
+    const matchesCurrentEmail = row.email.toLowerCase() === profile.email.toLowerCase();
+    if (!row.email_verified_at && !matchesCurrentEmail) {
+      if (link || row.email_verification_required)
+        throw new Error("Confirm your current account email before signing in with this provider.");
+      // An existing provider identity keeps historical access without falsely
+      // verifying an old address that the provider no longer attests to.
+    }
+    if (!row.email_verified_at && matchesCurrentEmail) {
+      // Claiming an unverified email must not inherit a password chosen by
+      // someone who registered the address before its actual owner.
+      await client.query(
+        "UPDATE users SET email_verified_at=now(),email_verification_required=true,pending_email=NULL,password_hash=CASE WHEN $2 THEN NULL ELSE password_hash END WHERE id=$1",
+        [userId, link],
+      );
+      await client.query("DELETE FROM sessions WHERE user_id=$1", [userId]);
+      await client.query("DELETE FROM password_reset_tokens WHERE user_id=$1", [userId]);
+      await client.query("DELETE FROM email_verification_tokens WHERE user_id=$1", [userId]);
+    }
+    if (link)
+      await client.query(
+        "INSERT INTO oauth_accounts (user_id,provider,provider_user_id) VALUES($1,$2,$3)",
+        [userId, provider, profile.providerUserId],
+      );
+    return (
+      await client.query<AuthUser>(
+        'SELECT id,name,email,pending_email AS "pendingEmail",(password_hash IS NOT NULL) AS "hasPassword" FROM users WHERE id=$1',
+        [userId],
+      )
+    ).rows[0];
+  });
+}
+
 // Shared by both providers' callbacks: link to an existing OAuth identity,
 // link to an existing password account with the same email, or create a
 // brand-new user — then start a real session exactly like signup/signin do.
@@ -320,7 +490,10 @@ async function completeOAuthSignIn(provider: OAuthProvider, profile: OAuthProfil
     [provider, profile.providerUserId],
   );
   if (linked.rows[0]) {
-    return { user: linked.rows[0], isNewUser: false };
+    return {
+      user: await trustProviderEmail(linked.rows[0].id, profile, provider, false),
+      isNewUser: false,
+    };
   }
 
   const existingByEmail = await pool.query<AuthUser>(
@@ -329,25 +502,24 @@ async function completeOAuthSignIn(provider: OAuthProvider, profile: OAuthProfil
     [profile.email.toLowerCase()],
   );
   if (existingByEmail.rows[0]) {
-    const user = existingByEmail.rows[0];
-    await pool.query(
-      "INSERT INTO oauth_accounts (user_id, provider, provider_user_id) VALUES ($1, $2, $3)",
-      [user.id, provider, profile.providerUserId],
-    );
+    const user = await trustProviderEmail(existingByEmail.rows[0].id, profile, provider, true);
     return { user, isNewUser: false };
   }
 
   await registrationBudget(req);
-  const created = await pool.query<AuthUser>(
-    `INSERT INTO users (name, email, password_hash) VALUES ($1, $2, NULL)
+  const user = await authDb.transaction(async (client) => {
+    const created = await client.query<AuthUser>(
+      `INSERT INTO users (name, email, password_hash,email_verified_at) VALUES ($1, $2, NULL,now())
      RETURNING id, name, email, (password_hash IS NOT NULL) AS "hasPassword"`,
-    [profile.name, profile.email.toLowerCase()],
-  );
-  const user = created.rows[0];
-  await pool.query(
-    "INSERT INTO oauth_accounts (user_id, provider, provider_user_id) VALUES ($1, $2, $3)",
-    [user.id, provider, profile.providerUserId],
-  );
+      [profile.name, profile.email.toLowerCase()],
+    );
+    const user = created.rows[0];
+    await client.query(
+      "INSERT INTO oauth_accounts (user_id, provider, provider_user_id) VALUES ($1, $2, $3)",
+      [user.id, provider, profile.providerUserId],
+    );
+    return user;
+  });
   return { user, isNewUser: true };
 }
 

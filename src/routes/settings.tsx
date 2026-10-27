@@ -7,7 +7,7 @@ import { BrandMark } from "@/components/brand/BrandMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { SettingsContent } from "@/components/settings/SettingsContent";
 import { useAuth } from "@/lib/auth-context";
-import { updateProfile, changePassword, deleteAccount } from "@/lib/auth-client";
+import { updateProfile, changePassword, deleteAccount, resendEmailChange } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -57,8 +57,10 @@ function SettingsPage() {
           onUpdateProfile={async (input) => {
             const updated = await updateProfile(input);
             setUser(updated);
+            return updated;
           }}
           onChangePassword={changePassword}
+          onResendEmailChange={resendEmailChange}
           onDeleteAccount={async () => {
             await deleteAccount();
             setUser(null);

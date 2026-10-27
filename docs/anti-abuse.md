@@ -51,13 +51,16 @@ rejected, but it is not treated as proof that a person is human.
 The proof is **not CAPTCHA, identity verification or email verification**. An
 automated client can solve it; it raises automation cost while the independent
 quotas bound account creation. The UI retries a fresh check on a new submission;
-slow work has a 30-second timeout. No email or password is sent to another service.
+slow work has a 30-second timeout. The computational check stays local; passwords
+are never sent to a third-party service. Transactional email uses Resend as
+described in [email authentication](email-auth.md).
 
 OAuth sign-ins for existing accounts do not spend the new-account quota. New
 OAuth accounts spend the same daily IP/network budget as password registrations,
 and Google/GitHub email addresses must be provider-verified. Password-based
-accounts still have no email ownership verification; enabling that needs a
-separate delivery/verification flow. Reset-code attempts are consumed atomically
+registrations require the separate [email confirmation flow](email-auth.md)
+before a session can access protected routes; historical accounts retain the
+documented migration exception. Account creation succeeds before email delivery; unconfirmed accounts remain pending. Reset-code attempts are consumed atomically
 before password comparison to limit concurrent guessing as well.
 
 ## Publication limits

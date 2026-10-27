@@ -6,6 +6,9 @@ import { PGlite } from "@electric-sql/pglite";
 import express from "express";
 import cookieParser from "cookie-parser";
 import { ABUSE_SCHEMA } from "./abuse-schema";
+import { EMAIL_VERIFICATION_SCHEMA } from "./email-verification-schema";
+import { mailTransport } from "./email";
+import type { PoolClient } from "pg";
 import { solveRegistrationProof } from "../src/lib/registration-pow";
 import { detectProfileSpam } from "../src/lib/spam-detection";
 import { defaultProfile, type Profile } from "../src/lib/link-store";
@@ -13,7 +16,11 @@ import { errorHandler } from "./http-errors";
 
 process.env.DATABASE_URL = "postgres://test:test@127.0.0.1:1/test";
 process.env.ABUSE_SECRET = "anti-abuse-test-secret-with-at-least-32-characters";
+process.env.RESEND_API_KEY = "re_test_only";
+process.env.RESEND_FROM = "noreply@example.test";
+process.env.FRONTEND_URL = "http://localhost:8080";
 const { pool } = await import("./db");
+const { authDb } = await import("./auth-transaction");
 const { consumeCounter, networkIdentity, trustedProxies, rateLimit } = await import("./abuse");
 const { validProof, issueRegistrationChallenge, verifyRegistration } =
   await import("./registration");
@@ -29,6 +36,19 @@ before(async () => {
     CREATE TABLE profiles(slug TEXT PRIMARY KEY,data JSONB NOT NULL,owner_id UUID REFERENCES users(id),updated_at TIMESTAMPTZ NOT NULL DEFAULT now());
     CREATE TABLE sessions(token TEXT PRIMARY KEY,user_id UUID REFERENCES users(id),expires_at TIMESTAMPTZ NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT now());`);
   await db.exec(ABUSE_SCHEMA);
+  await db.exec(
+    `CREATE TABLE password_reset_tokens(id UUID PRIMARY KEY DEFAULT gen_random_uuid(),user_id UUID REFERENCES users(id),code_hash TEXT,reset_token TEXT,attempts INT DEFAULT 0,verified_at TIMESTAMPTZ,expires_at TIMESTAMPTZ,created_at TIMESTAMPTZ DEFAULT now());`,
+  );
+  await db.exec(EMAIL_VERIFICATION_SCHEMA);
+  test.mock.method(mailTransport, "deliver", async () => {});
+  test.mock.method(
+    authDb,
+    "transaction",
+    async <T>(operation: (client: Pick<PoolClient, "query">) => Promise<T>) =>
+      db.transaction((tx) =>
+        operation({ query: tx.query.bind(tx) } as unknown as Pick<PoolClient, "query">),
+      ),
+  );
   await db.exec(ABUSE_SCHEMA); // migration is safe to re-run
   const mocked = test.mock.method(pool, "query", query);
   const transactions = test.mock.method(
@@ -308,8 +328,10 @@ test("registration and HTTP limits reject replay, forged IP headers and honeypot
       }),
     });
     assert.equal(registered.status, 201);
-    assert.ok(registered.headers.get("set-cookie")?.includes("linqo_session="));
-    assert.equal((await registered.json()).user.email, "human@example.com");
+    assert.ok(!registered.headers.get("set-cookie")?.includes("linqo_session="));
+    const result = await registered.json();
+    assert.equal(result.email, "human@example.com");
+    assert.equal(result.verificationRequired, true);
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve, reject) =>

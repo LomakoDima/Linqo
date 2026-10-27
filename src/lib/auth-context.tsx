@@ -6,6 +6,7 @@ import {
   signUp as apiSignUp,
   signOut as apiSignOut,
   type AuthUser,
+  type SignUpResult,
 } from "@/lib/auth-client";
 
 const ME_QUERY_KEY = ["me"];
@@ -22,10 +23,10 @@ type AuthContextValue = {
     email: string;
     password: string;
     website?: string;
-  }) => Promise<AuthUser>;
+  }) => Promise<SignUpResult>;
   signOut: () => Promise<void>;
   // Settings writes the updated user straight into the cache the same way
-  // signIn/signUp do — no refetch needed, the PATCH response already has it.
+  // signIn does — no refetch needed, the PATCH response already has it.
   setUser: (user: AuthUser | null) => void;
 };
 
@@ -44,9 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return user;
     },
     signUp: async (input) => {
-      const user = await apiSignUp(input);
-      queryClient.setQueryData(ME_QUERY_KEY, user);
-      return user;
+      return apiSignUp(input);
     },
     signOut: async () => {
       await apiSignOut();

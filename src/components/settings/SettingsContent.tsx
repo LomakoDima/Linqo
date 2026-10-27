@@ -35,15 +35,17 @@ export function SettingsContent({
   onUpdateProfile,
   onChangePassword,
   onDeleteAccount,
+  onResendEmailChange,
 }: {
   user: AuthUser;
   onUpdateProfile: (input: {
     name: string;
     email?: string;
     currentPassword?: string;
-  }) => Promise<void>;
+  }) => Promise<AuthUser>;
   onChangePassword: (input: { currentPassword: string; newPassword: string }) => Promise<void>;
   onDeleteAccount: () => Promise<void>;
+  onResendEmailChange?: () => Promise<void>;
 }) {
   const id = useId();
   const [name, setName] = useState(user.name);
@@ -57,6 +59,7 @@ export function SettingsContent({
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleteError, setDeleteError] = useState<Feedback>(null);
   const [deleting, setDeleting] = useState(false);
+  const [resendingEmail, setResendingEmail] = useState(false);
   const emailChanged = user.hasPassword && email.trim() !== user.email;
   const profileChanged = name.trim() !== user.name || emailChanged;
 
@@ -66,14 +69,19 @@ export function SettingsContent({
     setProfileSubmitting(true);
     setProfileFeedback(null);
     try {
-      await onUpdateProfile({
+      const updated = await onUpdateProfile({
         name: name.trim(),
         ...(emailChanged ? { email: email.trim(), currentPassword: emailPassword } : {}),
       });
-      setName(name.trim());
-      setEmail(email.trim());
+      setName(updated.name);
+      setEmail(updated.email);
       setEmailPassword("");
-      setProfileFeedback({ kind: "success", text: "Saved" });
+      setProfileFeedback({
+        kind: "success",
+        text: emailChanged
+          ? "Check your new email to confirm the change. Your current address stays active until then."
+          : "Saved",
+      });
     } catch (err) {
       setProfileFeedback({
         kind: "error",
@@ -193,6 +201,44 @@ export function SettingsContent({
                     <p id={`${id}-provider`} className="text-xs text-muted-foreground">
                       Managed by your sign-in provider.
                     </p>
+                  )}
+                  {user.pendingEmail && (
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      <p className="break-words">
+                        Confirmation pending for {user.pendingEmail}. Your current address stays
+                        active.
+                      </p>
+                      {onResendEmailChange && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={resendingEmail}
+                          onClick={async () => {
+                            setResendingEmail(true);
+                            try {
+                              await onResendEmailChange();
+                              setProfileFeedback({
+                                kind: "success",
+                                text: "Confirmation email sent.",
+                              });
+                            } catch (error) {
+                              setProfileFeedback({
+                                kind: "error",
+                                text:
+                                  error instanceof Error
+                                    ? error.message
+                                    : "Couldn't send confirmation email",
+                              });
+                            } finally {
+                              setResendingEmail(false);
+                            }
+                          }}
+                        >
+                          {resendingEmail ? "Sending…" : "Resend confirmation"}
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </div>
                 {emailChanged && (

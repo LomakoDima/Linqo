@@ -1,8 +1,14 @@
 import type { ErrorRequestHandler } from "express";
 import multer from "multer";
 import { AbuseError } from "./abuse-error";
+import { EmailDeliveryError } from "./email";
 
 export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
+  if (err instanceof EmailDeliveryError) {
+    res.setHeader("Cache-Control", "no-store");
+    res.status(503).json({ error: err.message, code: err.code });
+    return;
+  }
   if (err instanceof AbuseError) {
     if (err.retryAfter > 0) res.setHeader("Retry-After", String(err.retryAfter));
     res.setHeader("RateLimit-Remaining", "0");

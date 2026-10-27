@@ -3,10 +3,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { WelcomeModal } from "@/components/WelcomeModal";
 import { useAuth } from "@/lib/auth-context";
 
-// Landing target for a brand-new OAuth signup (see backend/routes/auth.ts
-// callbacks) — a hard server redirect can't hand the SPA any local state,
-// so this route exists purely to show the same WelcomeModal the
-// email/password signup path shows inline on /login.
+// Welcome after OAuth registration, or the first sign-in after confirming
+// an email/password registration.
 export const Route = createFileRoute("/welcome")({
   head: () => ({ meta: [{ title: "Welcome — Linqo" }] }),
   component: WelcomePage,
